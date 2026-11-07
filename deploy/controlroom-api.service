@@ -1,0 +1,21 @@
+[Unit]
+Description=ControlRoom API and LangGraph orchestrator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=controlroom
+Group=controlroom
+EnvironmentFile=/etc/controlroom/api.env
+WorkingDirectory=/opt/controlroom/backend
+ExecStart=/opt/controlroom/venv/bin/uvicorn app.api:app --host 127.0.0.1 --port 8100 --no-server-header --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/controlroom
+
+[Install]
+WantedBy=multi-user.target
