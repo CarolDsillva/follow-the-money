@@ -51,3 +51,18 @@
 .fh-signin.ghosted { background: transparent; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.45); padding: 17px 20px; border-radius: 2px; gap: 40px; }
 .fh-signin.ghosted:hover { background: rgba(255, 255, 255, 0.08); }
 .lp-foot { color: #475569; }
+
+/* closing banner: its own round glow (the hero's glow stretches flat in a short box) */
+.lp-final .fh-glow { filter: none; background:
+  radial-gradient(circle 360px at 80% 50%, rgba(125, 211, 252, 0.42), rgba(59, 130, 246, 0.18) 50%, rgba(30, 64, 175, 0) 100%),
+  radial-gradient(circle 140px at 80% 50%, rgba(224, 242, 254, 0.35), rgba(224, 242, 254, 0) 100%); }
+.lp-final .fh-glow::after { content: ""; position: absolute; inset: 0;
+  background: repeating-radial-gradient(circle at 80% 50%, rgba(255, 255, 255, 0) 0 119px, rgba(255, 255, 255, 0.07) 119px 120px); }
+.lp-final .fh-signin.ghosted { font-size: 16px; padding: 20px 24px; }
+@media (max-width: 760px) {
+  .lp-final { padding: 56px 24px; }
+  .lp-final .fh-glow { background: radial-gradient(circle 260px at 85% 100%, rgba(125, 211, 252, 0.35), rgba(30, 64, 175, 0) 100%); }
+  .lp-final .fh-cta { flex-wrap: wrap; }
+}
+.lp-final .fh-glow::after { -webkit-mask-image: radial-gradient(circle 400px at 80% 50%, #000 55%, transparent 100%); mask-image: radial-gradient(circle 400px at 80% 50%, #000 55%, transparent 100%); }
+@media (max-width: 760px) { .lp-final .fh-glow::after { display: none; } }
