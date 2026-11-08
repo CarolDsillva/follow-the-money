@@ -279,6 +279,29 @@ class Engine:
         self.store.event(case_id, by, "remediation_evidence", f"{rem['label']}: {rem['document']['title']} uploaded to Object Storage",
                          {"document_id": rem["document"]["id"], "updates": [[r, i] for r, i, _ in rem["updates"]]})
 
+    def reconsider(self, case_id: str, action_id: str, by: str):
+        """Turn a rejected action into an approved one while the case is in remediation. Logged like any decision."""
+        st = self.store.case(case_id)["state"]
+        actions = st.get("actions", [])
+        a = next((x for x in actions if x["id"] == action_id), None)
+        if not a or a.get("decision") != "rejected":
+            raise KeyError(action_id)
+        a.update(decision="approved", decided_by=by, decided_at=now(), reason="Reconsidered during remediation")
+        ctx = self.ctx(case_id)
+        if a["kind"] == "review_hold":
+            for inv in a["target_ids"]:
+                for p in ctx.world.find("payment", invoice_id=inv):
+                    if p["status"] == "scheduled":
+                        self.store.update_record(case_id, p["id"], {"status": "on_hold", "hold_reason": f"{case_id} review"})
+                self.store.update_record(case_id, inv, {"status": "on_review_hold"})
+            a.update(status="done", executed_at=now(), execution="Simulated in the ERP simulator: payments set to on hold.")
+        elif a["kind"] == "release_for_payment":
+            a.update(status="done", executed_at=now(), execution="Simulated: invoices left scheduled.")
+        else:
+            a.update(status="task_open", task_opened_at=now())
+        self.store.merge_state(case_id, {"actions": actions})
+        self.store.event(case_id, by, "decision", f"Reconsidered and approved: {a['label']} ({', '.join(a['target_ids'])})", {"action_id": action_id})
+
     def complete_task(self, case_id: str, action_id: str, by: str, note: str):
         st = self.store.case(case_id)["state"]
         actions = st.get("actions", [])

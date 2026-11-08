@@ -599,6 +599,9 @@ function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; even
   const ready = c.waiting_for === "remediation" && !c.busy;
   const docs = st.remediation_docs ?? [];
   const audit = actions.find((a) => a.kind === "escalate_to_audit" && a.decision === "approved");
+  const { setPersona } = usePersona();
+  const approved = (k: string) => actions.some((a) => a.kind === k && a.decision === "approved");
+  const rejected = actions.filter((a) => a.decision === "rejected");
   const isA = c.template === "INC-0412";
 
   const act = async (name: string, fn: () => Promise<unknown>) => {
@@ -618,13 +621,30 @@ function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; even
             <a className="button" href={`/api/cases/${c.id}/report`} target="_blank" rel="noreferrer">Open the signed report</a>
           </section>
         )}
-        {refusal && !c.status.startsWith("closed") && (
-          <section className="panel refused">
-            <h2>Close refused</h2>
-            <p>{refusal.text} "Resolved" isn't a button: the controls have to pass.</p>
-            <ul>{(refusal.data.failing ?? []).map((f: Control) => <li key={f.test}><b>{f.test.replaceAll("_", " ")}</b>: {f.explanation}</li>)}</ul>
-          </section>
-        )}
+        {refusal && !c.status.startsWith("closed") && (() => {
+          const now = (st.verification?.checks ?? []).filter((x) => x.status === "exception");
+          const failing: Control[] = now.length ? now : (refusal.data.failing ?? []);
+          return failing.length > 0 && (
+            <section className="panel refused">
+              <h2>Close refused: {failing.length} check{failing.length > 1 ? "s" : ""} still failing</h2>
+              <p>"Resolved" isn't a button: each control has to pass first. Here's how to fix each one.</p>
+              <ul className="fixlist">
+                {failing.map((f) => {
+                  const fx = fixFor(f.test, actions);
+                  return (
+                    <li key={f.test}>
+                      <b>{f.test.replaceAll("_", " ")}</b>
+                      <span className="fine">{f.explanation}</span>
+                      <span className="howfix">How to fix: {fx.how}</span>
+                      {fx.persona && <button onClick={() => setPersona(fx.persona!)}>{fx.button}</button>}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="fine">Or close with a documented override below: the Finance Director must give a written reason, recorded in the signed report.</p>
+            </section>
+          );
+        })()}
         <section className="panel">
           <div className="panel-head"><h2>Closure checks</h2><span className="muted">{st.verification ? `Computed ${new Date(st.verification.at ?? st.verification.last_refusal ?? "").toLocaleTimeString()}` : "Run verification to compute"}</span></div>
           {st.verification ? <Checks checks={st.verification.checks} /> : criteria.length > 0 ? (<>
@@ -651,12 +671,24 @@ function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; even
                 </li>
               ))}
             </ul>
-            {isA && (
+            {rejected.length > 0 && (
+              <div className="rejected-acts">
+                <p><b>You rejected {rejected.length} action{rejected.length > 1 ? "s" : ""}.</b> If a closure check depends on one, the case can't close until it's done. The Finance Director can reconsider:</p>
+                {rejected.map((a) => (
+                  <div key={a.id} className="rej">
+                    <span>{a.label} <span className="fine">({a.target_ids.join(", ")})</span></span>
+                    <PersonaAction perm="decide" className="" busy={busy === a.id} label="Reconsider and approve"
+                      onClick={(persona) => act(a.id, () => post(`/api/cases/${c.id}/actions/${a.id}/reconsider`, { persona }))} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {isA && (approved("supplier_callback") || approved("due_diligence") || approved("receiving_confirmation")) && (
               <div className="simbtns">
-                <PersonaAction perm="remediation:callback" className="" busy={busy === "cb"} label={docs.includes("DOC-CB-301") ? "✓ Callback note added" : "Procurement: callback and due diligence"}
-                  onClick={(persona) => !docs.includes("DOC-CB-301") && act("cb", () => post(`/api/cases/${c.id}/remediation`, { kind: "callback", persona }))} />
-                <PersonaAction perm="remediation:receiving" className="" busy={busy === "rc"} label={docs.includes("DOC-RC-7104") ? "✓ Receiving confirmed" : "Warehouse and AP: confirm receipts"}
-                  onClick={(persona) => !docs.includes("DOC-RC-7104") && act("rc", () => post(`/api/cases/${c.id}/remediation`, { kind: "receiving", persona }))} />
+                {(approved("supplier_callback") || approved("due_diligence")) && <PersonaAction perm="remediation:callback" className="" busy={busy === "cb"} label={docs.includes("DOC-CB-301") ? "✓ Callback note added" : "Procurement: callback and due diligence"}
+                  onClick={(persona) => !docs.includes("DOC-CB-301") && act("cb", () => post(`/api/cases/${c.id}/remediation`, { kind: "callback", persona }))} />}
+                {approved("receiving_confirmation") && <PersonaAction perm="remediation:receiving" className="" busy={busy === "rc"} label={docs.includes("DOC-RC-7104") ? "✓ Receiving confirmed" : "Warehouse and AP: confirm receipts"}
+                  onClick={(persona) => !docs.includes("DOC-RC-7104") && act("rc", () => post(`/api/cases/${c.id}/remediation`, { kind: "receiving", persona }))} />}
               </div>
             )}
             {audit && (
@@ -762,6 +794,10 @@ function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions:
     if (!refused) {
       step = "Step 3 of 5"; text = <>Try to close the incident now, as the Finance Director. It will be <b>refused</b>, because the fixes haven't been proven yet.</>;
       btn = { label: "Switch to Tom and try closing", run: as("finance_director", "Verification & audit") };
+    } else if (actions.some((a) => a.decision === "rejected" && ["supplier_callback", "due_diligence", "receiving_confirmation", "review_hold"].includes(a.kind))
+      && (c.state.verification?.checks ?? []).some((x) => x.status === "exception")) {
+      step = "Step 4 of 5"; text = <>A closure check depends on an action you <b>rejected</b>. As <b>Tom Okafor</b>, reconsider it under Remediation tasks, or close with a documented override.</>;
+      btn = { label: "Switch to Tom", run: as("finance_director", "Verification & audit") };
     } else if (isA && !docs.includes("DOC-CB-301")) {
       step = "Step 4 of 5"; text = <>Play <b>Grace Liu, Procurement</b>: call the supplier on the number on file and check the new supplier. Click <b>Procurement: callback and due diligence</b>.</>;
       btn = { label: "Switch to Grace", run: as("procurement", "Verification & audit") };
@@ -898,4 +934,34 @@ function PlanPanel({ c, done, running }: { c: CaseFull; done: (a: string) => boo
       {c.state.plan?.objective && <details className="pl-raw"><summary>The Incident Commander's own wording</summary><p>{c.state.plan.objective}</p></details>}
     </section>
   );
+}
+
+// What fixes each closure check, and who has to do it.
+function fixFor(test: string, actions: ActionView[]): { how: string; persona?: string; button?: string } {
+  const has = (k: string) => actions.find((a) => a.kind === k);
+  const rej = (k: string) => has(k)?.decision === "rejected";
+  switch (test) {
+    case "bank_change_cooling_off":
+      return rej("supplier_callback") && rej("due_diligence")
+        ? { how: "the supplier callback was rejected. Reconsider it as the Finance Director, then Procurement calls the supplier.", persona: "finance_director", button: "Switch to Tom (Finance Director)" }
+        : { how: "Procurement calls the supplier on the phone number on file, from before the change.", persona: "procurement", button: "Switch to Grace (Procurement)" };
+    case "new_supplier_due_diligence":
+      return rej("due_diligence") && rej("supplier_callback")
+        ? { how: "due diligence was rejected. Reconsider it as the Finance Director first.", persona: "finance_director", button: "Switch to Tom (Finance Director)" }
+        : { how: "Procurement completes due diligence on the new supplier.", persona: "procurement", button: "Switch to Grace (Procurement)" };
+    case "three_way_match":
+      return rej("receiving_confirmation")
+        ? { how: "the receiving confirmation was rejected. Reconsider it as the Finance Director first.", persona: "finance_director", button: "Switch to Tom (Finance Director)" }
+        : { how: "the Warehouse confirms what was actually received, and AP disputes the shortfall.", persona: "warehouse", button: "Switch to Ana (Warehouse)" };
+    case "audit_escalation":
+      return { how: "Internal Audit acknowledges the escalation.", persona: "internal_audit", button: "Switch to Rafael (Internal Audit)" };
+    case "approved_tasks":
+      return { how: "each owner finishes their open task (see Remediation tasks).", };
+    case "containment":
+      return rej("review_hold")
+        ? { how: "the payment hold was rejected. Reconsider it as the Finance Director.", persona: "finance_director", button: "Switch to Tom (Finance Director)" }
+        : { how: "place the affected invoices on hold." };
+    default:
+      return { how: "see the explanation, then run verification again." };
+  }
 }

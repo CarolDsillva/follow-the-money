@@ -375,6 +375,19 @@ def audit_ack(case_id: str, body: Act):
     return {"acknowledged": True}
 
 
+@app.post("/api/cases/{case_id}/actions/{action_id}/reconsider")
+def reconsider(case_id: str, action_id: str, body: Act):
+    c = _case_or_404(case_id)
+    if c["status"] != "remediation":
+        raise HTTPException(409, "Actions can only be reconsidered during remediation")
+    by = _actor(case_id, body.persona, "decide")
+    try:
+        engine.reconsider(case_id, action_id, by)
+    except KeyError:
+        raise HTTPException(409, "That action wasn't rejected")
+    return {"approved": action_id}
+
+
 class TaskDone(Act):
     note: str = Field(..., min_length=10, max_length=600)
 

@@ -69,8 +69,8 @@ export function Tour({ steps, storageKey, onTab, autoStart }: { steps: TourStep[
 }
 
 export const CASE_TOUR: TourStep[] = [
-  { target: "", title: "Welcome. Here's what you're looking at", tab: "Investigation",
-    body: "Follow the Money checks a company's supplier payments before they go out. A scan has flagged three invoices, $144,000 in total, about to be paid to three suppliers that look unrelated. AI agents are now investigating it, like a team of analysts. This one-minute tour shows you how to read the screen." },
+  { target: "", title: "What you're looking at", tab: "Investigation",
+    body: "Three invoices, $144,000, are about to be paid to suppliers that look unrelated. AI agents check whether they're connected. Here's how to read the screen." },
   { target: "[data-tour=stepper]", title: "Where the case is", tab: "Investigation",
     body: "Every case goes through six stages, from Detected to Verified & closed. The highlighted stage is where it is now. The AI does the first three; you take part in Approve, Remediate and Verify." },
   { target: "[data-tour=kpis]", title: "What's at stake", tab: "Investigation",

@@ -116,3 +116,22 @@
 .fh-hint2 { position: absolute; z-index: 3; right: 30px; bottom: 30px; margin: 0; font-size: 13px; color: rgba(255, 255, 255, 0.75); display: flex; gap: 8px; align-items: center; }
 .fh-hint2 i { width: 9px; height: 9px; border-radius: 50%; background: #fb7185; box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.25); }
 .fh-nav nav a { min-width: 0; }
+
+/* bigger copy, calmer map */
+.fh-copy { left: 44px; bottom: 48px; max-width: 600px; }
+.fh-copy h1 { font-size: 76px; line-height: 1; letter-spacing: -0.04em; margin: 0 0 20px; }
+.fh-copy > p { font-size: 20px; max-width: 540px; line-height: 1.5; }
+.fh-cta { margin-top: 30px; }
+.fh-btn { font-size: 16px; padding: 20px 24px; }
+.mm text { font-size: 17px; }
+.mm .mm-runlabel text { font-size: 15px; }
+.mm .mm-runlabel text.big { font-size: 26px; }
+.mm-node.others circle:last-of-type { fill: rgba(255, 255, 255, 0.55); stroke: #ffffff; stroke-width: 2; }
+.mm-tag .t1 { font-size: 15px; }
+.mm-tag .t2 { font-size: 14px; }
+@media (max-width: 1050px) { .fh-copy h1 { font-size: 46px; } .fh-copy > p { font-size: 16px; } }
+
+.fh-copy { max-width: 640px; }
+.fh-copy h1 { font-size: 70px; white-space: nowrap; }
+.fh-copy > p { max-width: 500px; }
+@media (max-width: 1050px) { .fh-copy h1 { white-space: normal; } }

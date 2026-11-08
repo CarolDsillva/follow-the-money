@@ -61,8 +61,7 @@ export function Landing() {
           <a className="fh-signin" href="/?view=incidents">Open the app <span>→</span></a>
         </header>
         <div className="fh-copy">
-          <p className="fh-live"><i /> {net ? `Live · ${net.run.id} · ${net.suppliers.length} suppliers · ${net.incidents.length} incidents` : "Loading the payment run"}</p>
-          <h1>Follow every dollar before it leaves.</h1>
+          <h1>Follow every dollar<br />before it leaves.</h1>
           <p>AI agents trace each payment back to its supplier, invoice, delivery and bank details, flag what doesn't add up, and wait for a person to approve every action.</p>
           <div className="fh-cta">
             <button className="fh-btn" disabled={!!busy} onClick={() => run("INC-0412")}>{busy ? "Starting the agents…" : "Run the live demo"} <span>→</span></button>

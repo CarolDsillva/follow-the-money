@@ -495,3 +495,11 @@ button.big { padding: 13px 20px; font-size: 14.5px; white-space: nowrap; }
 .fcard small { color: #64748b; font-size: 12px; }
 .fcard em { font-style: normal; font-weight: 700; color: #2563eb; font-size: 12.5px; }
 @media (max-width: 1050px) { .scan-steps, .drops { grid-template-columns: 1fr; } .scan-hero { flex-direction: column; align-items: flex-start; } }
+
+.fixlist { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 10px; }
+.fixlist li { display: grid; gap: 3px; background: #ffffff; border: 1px solid #fecaca; border-radius: 10px; padding: 10px 12px; color: #334155; }
+.fixlist li b { text-transform: capitalize; color: #991b1b; }
+.fixlist .howfix { font-size: 13px; font-weight: 600; color: #0b1d3a; }
+.fixlist button { justify-self: start; margin-top: 4px; font-size: 12.5px; padding: 5px 10px; }
+.rejected-acts { border: 1px dashed #fca5a5; background: #fff7f7; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: #334155; }
+.rejected-acts .rej { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #fde2e2; }
