@@ -25,6 +25,8 @@ export function App() {
 }
 
 function TopBar() {
+  const q = new URLSearchParams(location.search);
+  const here = q.get("view") === "scan" ? "scan" : (q.get("view") === "incidents" || q.get("case") || q.get("supplier")) ? "incidents" : "";
   return (
     <header className="topbar">
       <a className="brand" href="/">
@@ -33,10 +35,9 @@ function TopBar() {
       </a>
       <span className="tenant">Northstar Manufacturing Group · Finance Control</span>
       <nav>
-        <a href="/?view=incidents">Incidents</a>
-        <a href="/?view=scan">Scan your data</a>
-        <a href="/#how">How it works</a>
-        <a href="/api/docs" target="_blank" rel="noreferrer">API</a>
+        <a href="/">Home</a>
+        <a href="/?view=incidents" className={here === "incidents" ? "on" : ""}>Incidents</a>
+        <a href="/?view=scan" className={here === "scan" ? "on" : ""}>Scan your data</a>
       </nav>
       <PersonaSwitch />
     </header>
@@ -121,7 +122,7 @@ function Inbox() {
             {templates.map((c) => {
               const l = latest(c.id);
               return (
-                <tr key={c.id}>
+                <tr key={c.id} className="rowlink" onClick={(e) => { if (!(e.target as HTMLElement).closest("a,button")) location.href = `/?case=${l?.id ?? c.id}`; }}>
                   <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a><div className="sub">{c.title}</div></td>
                   <td className="trig"><span className={`pattern ${c.supplier_ids.length > 1 ? "multi" : "single"}`}>{c.supplier_ids.length > 1 ? `Multi-supplier pattern (${c.supplier_ids.length} linked)` : "Single-supplier pattern"}</span><br />{c.trigger}</td>
                   <td className="num money">{usd(c.potential_exposure)}<div className="sub">potential, not a loss</div></td>
@@ -157,16 +158,17 @@ function Inbox() {
               </select>
             </div></div>
           <table className="table">
-            <thead><tr><th>Run</th><th>Headline</th><th>Severity</th><th>Status</th><th className="num">Model cost</th><th>Age</th></tr></thead>
+            <thead><tr><th>Run</th><th>Headline</th><th>Severity</th><th>Status</th><th className="num">Model cost</th><th>Age</th><th /></tr></thead>
             <tbody>
               {runs.slice(0, 15).map((c) => (
-                <tr key={c.id}>
+                <tr key={c.id} className="rowlink" onClick={(e) => { if (!(e.target as HTMLElement).closest("a,button")) location.href = `/?case=${c.id}`; }}>
                   <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a>{featured.has(c.id) && <div className="sub">Example</div>}{mine.has(c.id) && <div className="sub">Yours</div>}</td>
                   <td className="trig">{c.summary ?? c.title}</td>
                   <td>{c.severity && <span className={`sev sev-${c.severity.level}`} title={c.severity.reason}>{c.severity.level}</span>}</td>
                   <td><Pill status={c.status} /></td>
                   <td className="num mono">{costText(c.cost)}</td>
                   <td className="muted" title={new Date(c.opened_at).toLocaleString()}>{age(c.opened_at)}</td>
+                  <td className="right"><a className="openlink" href={`/?case=${c.id}`}>Open →</a></td>
                 </tr>
               ))}
             </tbody>

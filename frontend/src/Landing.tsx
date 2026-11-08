@@ -41,6 +41,8 @@ export function Landing() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const net = useNetwork();
+  const ex412 = net?.featured?.find((f) => f.startsWith("INC-0412")) ?? "INC-0412";
+  const example = (where: string) => where === "network" ? `/?case=${ex412}#network` : `/?case=${ex412}&tab=${encodeURIComponent(where)}`;
   const run = (t: string) => { setBusy(t); setErr(null); startDemo(t).catch((e) => { setErr(e.message); setBusy(null); }); };
 
   return (
@@ -64,17 +66,11 @@ export function Landing() {
           <p>AI agents trace each payment back to its supplier, invoice, delivery and bank details, flag what doesn't add up, and wait for a person to approve every action.</p>
           <div className="fh-cta">
             <button className="fh-btn" disabled={!!busy} onClick={() => run("INC-0412")}>{busy ? "Starting the agents…" : "Run the live demo"} <span>→</span></button>
-            <span className="fh-note">• No sign-up · runs on Vultr · fictional data</span>
+            <span className="fh-note">No sign-up · fictional data</span>
           </div>
           {err && <p className="lp-err">{err}</p>}
         </div>
-        <div className="fh-legend">
-          <span><i className="lg-run" />Payment run</span>
-          <span><i className="lg-flow" />Money due, by size</span>
-          <span><i className="lg-risk" />Supplier in an incident</span>
-          <span><i className="lg-link" />Shared bank, phone or address</span>
-          <span className="fh-hint">Hover a supplier · click a red one</span>
-        </div>
+        <p className="fh-hint2"><i /> Red: suppliers under investigation · hover any dot, click to open</p>
       </section>
 
       <section className="cap" id="cap">
@@ -93,7 +89,7 @@ export function Landing() {
             <h3>Cross-supplier identity discovery</h3>
             <p>One supplier can hide behind several registered names, bank accounts, addresses or phone numbers. We link apparently unrelated suppliers through shared identifiers and payment history.</p>
             <p className="cap-ex"><b>In the demo:</b> three "different" suppliers share one bank account, one phone and one unit address.</p>
-            <span className="cap-where">See it on the Network graph</span>
+            <a className="cap-where" href={example("network")}>See it on the network graph →</a>
           </article>
           <article className="cap-card">
             <svg viewBox="0 0 220 120" className="cap-art" aria-hidden="true">
@@ -105,7 +101,7 @@ export function Landing() {
             <h3>Approval-pattern manipulation</h3>
             <p>An employee splits a purchase across requests, suppliers or invoices to stay under the approval threshold. We rebuild the sequence and find the pattern single-invoice checks miss.</p>
             <p className="cap-ex"><b>In the demo:</b> one requester, one approver, three requests in 39 minutes, each just under $50,000, together $144,000.</p>
-            <span className="cap-where">See it in the control tests</span>
+            <a className="cap-where" href={example("Investigation")}>See it in the control tests →</a>
           </article>
           <article className="cap-card">
             <svg viewBox="0 0 220 120" className="cap-art" aria-hidden="true">
@@ -118,7 +114,7 @@ export function Landing() {
             <h3>Financial event reconstruction</h3>
             <p>Supplier changes, purchase orders, receipts, approvals and payments, put in order. We rebuild the timeline and show exactly where each control failed.</p>
             <p className="cap-ex"><b>In the demo:</b> a bank change requested by a look-alike email 7 days before payment, and $67,800 billed but never received.</p>
-            <span className="cap-where">See it on the Timeline</span>
+            <a className="cap-where" href={example("Timeline")}>See it on the timeline →</a>
           </article>
         </div>
         <div className="cap-cta">
@@ -195,7 +191,7 @@ export function Landing() {
       <footer className="lp-foot">
         <Logo />
         <p>All demo data is synthetic. Northstar Manufacturing Group, its people and suppliers are fictional. Follow the Money never pays anyone or contacts a supplier.</p>
-        <p>Vultr Agent Rush · Challenge 2: Powering the Future of Work · <a href="/api/docs">API</a></p>
+        <p>Vultr Agent Rush · Challenge 2: Powering the Future of Work · <a href="https://github.com/CarolDsillva/follow-the-money">Source on GitHub</a></p>
       </footer>
     </div>
   );

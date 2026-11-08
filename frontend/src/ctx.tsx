@@ -11,6 +11,17 @@ export const PERSONAS: Record<string, { name: string; role: string }> = {
   warehouse: { name: "Ana Petrov", role: "Warehouse Supervisor" },
 };
 
+export const ROLE_CAN: Record<string, string> = {
+  ap_lead: "start investigations and review the evidence. Approving needs the Finance Director.",
+  finance_director: "approve or reject actions, close incidents and record overrides.",
+  internal_audit: "acknowledge escalations to Internal Audit.",
+  procurement: "record supplier callbacks and due diligence.",
+  warehouse: "confirm what was actually received.",
+};
+export const ROLE_COLOR: Record<string, string> = {
+  ap_lead: "#64748b", finance_director: "#2563eb", internal_audit: "#7c3aed", procurement: "#0891b2", warehouse: "#b45309",
+};
+
 // Mirrors the server's rules so buttons can explain themselves. The API enforces them.
 export const ALLOWED: Record<string, string> = {
   decide: "finance_director", close: "finance_director", override: "finance_director",
@@ -22,10 +33,25 @@ const Persona = createContext<PersonaCtx>(null!);
 
 export function PersonaProvider({ children }: { children: ReactNode }) {
   const [persona, set] = useState(() => localStorage.getItem("persona") ?? "ap_lead");
-  const setPersona = (p: string) => { localStorage.setItem("persona", p); set(p); };
+  const [toast, setToast] = useState<string | null>(null);
+  const setPersona = (p: string) => {
+    localStorage.setItem("persona", p); set(p);
+    setToast(p);
+    window.setTimeout(() => setToast((t) => (t === p ? null : t)), 4200);
+  };
   const can = (perm: string) => ALLOWED[perm] === persona;
   const needs = (perm: string) => `Needs the ${PERSONAS[ALLOWED[perm]].role} (${PERSONAS[ALLOWED[perm]].name}). Switch persona at the top right.`;
-  return <Persona.Provider value={{ persona, setPersona, can, needs }}>{children}</Persona.Provider>;
+  return (
+    <Persona.Provider value={{ persona, setPersona, can, needs }}>
+      {children}
+      {toast && (
+        <div className="role-toast" role="status" style={{ borderLeftColor: ROLE_COLOR[toast] }}>
+          <b>You are now {PERSONAS[toast].name}, {PERSONAS[toast].role}.</b>
+          <span>You can {ROLE_CAN[toast]}</span>
+        </div>
+      )}
+    </Persona.Provider>
+  );
 }
 
 export const usePersona = () => useContext(Persona);
@@ -34,6 +60,7 @@ export function PersonaSwitch() {
   const { persona, setPersona } = usePersona();
   return (
     <label className="persona" data-tour="persona" title="Demo personas, not authentication. The API enforces what each role may do.">
+      <span className="pchip" style={{ background: ROLE_COLOR[persona] }}>{PERSONAS[persona].name.split(" ").map((w) => w[0]).join("")}</span>
       <span>Acting as</span>
       <select value={persona} onChange={(e) => setPersona(e.target.value)}>
         {Object.entries(PERSONAS).map(([k, p]) => <option key={k} value={k}>{p.name} · {p.role}</option>)}

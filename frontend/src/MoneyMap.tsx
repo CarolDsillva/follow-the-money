@@ -5,7 +5,7 @@ type Sup = { id: string; name: string; in_run: number; payments: number; bank: s
   incident: { id: string; title: string; severity: string; exposure: number } | null };
 type Net = { run: { id: string; name: string; total: number; payments: number; scheduled_for: string }; suppliers: Sup[];
   links: { from: string; to: string; attribute: string; strength: string; explanation: string }[];
-  incidents: { id: string; title: string }[] };
+  incidents: { id: string; title: string }[]; featured?: string[] };
 
 const W = 1400, H = 800;
 const RUN = { x: 560, y: 360 };
@@ -37,8 +37,8 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
     linked.forEach((s, i) => out.push({ ...s, ...at(0, -128 + i * 38), o: 0, label: true }));
     single.forEach((s, i) => out.push({ ...s, ...at(0, 70 + i * 30), o: 0, label: true }));
     const top = [...paid].sort((a, b) => b.in_run - a.in_run);
-    const big = top.slice(0, 6), rest = top.slice(6);
-    big.forEach((s, i) => out.push({ ...s, ...at(1, -48 + i * (96 / Math.max(1, big.length - 1))), o: 1, label: true } as never));
+    const big = top.slice(0, 3), rest = top.slice(3);
+    big.forEach((s, i) => out.push({ ...s, ...at(1, -36 + i * 36), o: 1, label: true } as never));
     rest.forEach((s, i) => {
       const a = -150 + i * (300 / Math.max(1, rest.length - 1));
       out.push({ ...s, ...at(2, Math.abs(a) < 12 ? a + 14 : a), o: 2 });
@@ -90,8 +90,6 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
 
       <circle cx={RUN.x} cy={RUN.y} r="70" fill="url(#core)" className="mm-pulse" />
       <circle cx={RUN.x} cy={RUN.y} r="11" fill="#ffffff" />
-      <circle cx={RUN.x - 52} cy={RUN.y} r="9" fill="none" stroke="#ffffff" strokeOpacity="0.5" />
-      <circle cx={RUN.x - 52} cy={RUN.y} r="3.5" fill="#ffffff" />
       {net && (
         <g className="mm-runlabel">
           <text x={RUN.x - 28} y={RUN.y - 40} textAnchor="end">{net.run.id}</text>

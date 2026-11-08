@@ -112,3 +112,7 @@
 .cap-where { margin-top: auto; font-size: 13px; font-weight: 700; color: #2563eb; padding-top: 6px; }
 .cap-cta { display: flex; align-items: center; gap: 18px; margin-top: 28px; flex-wrap: wrap; }
 @media (max-width: 1050px) { .cap-grid { grid-template-columns: 1fr; } .cap-q { font-size: 30px; } }
+
+.fh-hint2 { position: absolute; z-index: 3; right: 30px; bottom: 30px; margin: 0; font-size: 13px; color: rgba(255, 255, 255, 0.75); display: flex; gap: 8px; align-items: center; }
+.fh-hint2 i { width: 9px; height: 9px; border-radius: 50%; background: #fb7185; box-shadow: 0 0 0 4px rgba(251, 113, 133, 0.25); }
+.fh-nav nav a { min-width: 0; }

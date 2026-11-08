@@ -143,7 +143,8 @@ def network():
                           "incident": incident_of.get(s["id"])})
     links = [{"from": l["from"], "to": l["to"], "attribute": l["attribute"], "strength": l["strength"], "explanation": l["explanation"]}
              for l in rules.shared_attributes(world)]
-    return {"run": {**run, "total": sum(s["in_run"] for s in suppliers), "payments": sum(s["payments"] for s in suppliers), "at": pay_at},
+    featured = (store.q("SELECT value FROM meta WHERE key = 'featured'") or [{"value": []}])[0]["value"]
+    return {"featured": featured, "run": {**run, "total": sum(s["in_run"] for s in suppliers), "payments": sum(s["payments"] for s in suppliers), "at": pay_at},
             "suppliers": suppliers, "links": links, "incidents": [{"id": c["id"], "title": c["title"]} for c in templates]}
 
 

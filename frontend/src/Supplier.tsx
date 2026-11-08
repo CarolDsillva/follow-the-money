@@ -25,7 +25,7 @@ export function SupplierPage({ id }: { id: string }) {
       <main className="case">
         <section className="casehead">
           <div className="casehead-main">
-            <a href="/?view=incidents" className="back">← Incidents</a>
+            <nav className="crumbs"><a href="/">Home</a><span>›</span><a href="/?view=incidents">Incidents</a><span>›</span><span>Suppliers</span><span>›</span><b>{s.id}</b></nav>
             <div className="titleline"><h1 className="suph">{s.legal_name}</h1><span className="chip">{s.id}</span>
               {d.incidents.map((i) => <a key={i.id} className="sev sev-High" href={`/?case=${i.id}`}>{i.id}</a>)}</div>
             <p className="casetitle">{s.address} · {s.phone} · {s.contact_email}</p>

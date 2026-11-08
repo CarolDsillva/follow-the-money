@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type Ev, type Graph } from "./api";
 import { fmt, Pill } from "./App";
-import { Cite, DrawerProvider, usePersona } from "./ctx";
+import { Cite, DrawerProvider, PERSONAS, ROLE_CAN, ROLE_COLOR, usePersona } from "./ctx";
 import { NetworkExplorer, type Focus } from "./Network";
 import { startDemo } from "./Landing";
 import { CASE_TOUR, Tour } from "./Tour";
@@ -72,7 +72,10 @@ function CaseInner({ id }: { id: string }) {
   const [ov, setOv] = useState<OverviewData | null>(null);
   const [events, setEvents] = useState<Ev[]>([]);
   const [, setGraph] = useState<Graph | null>(null);
-  const [tab, setTab] = useState<Tab>("Investigation");
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(location.search).get("tab");
+    return (TABS as readonly string[]).includes(t ?? "") ? (t as Tab) : "Investigation";
+  });
   const [follow, setFollow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const last = useRef(0);
@@ -112,7 +115,8 @@ function CaseInner({ id }: { id: string }) {
     <main className="case">
       <section className="casehead">
         <div className="casehead-main">
-          <a href="/" className="back">← Incidents</a>
+          <nav className="crumbs"><a href="/">Home</a><span>›</span><a href="/?view=incidents">Incidents</a><span>›</span>
+            {c.template && c.template !== c.id && <><a href={`/?case=${c.template}`}>{c.template}</a><span>›</span></>}<b>{c.id}</b></nav>
           <div className="titleline"><h1>{c.id}</h1><Pill status={c.status} />
             {sev && <span className={`sev sev-${sev.level}`} title={sev.reason}>{sev.level}</span>}
             {c.busy && <span className="live"><i />{runningAgent(events) ?? "Working"}</span>}</div>
@@ -146,6 +150,7 @@ function CaseInner({ id }: { id: string }) {
       )}
       {error && <p className="error" role="alert">{error}</p>}
 
+      <RoleStrip />
       <CaseNetwork c={c} events={events} />
 
       <div className="tabs" role="tablist">
@@ -308,13 +313,7 @@ function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
             {sel.failed && <p className="error">{sel.failed.text}</p>}
           </section>
         )}
-        {c.state.plan && (
-          <section className="panel">
-            <div className="panel-head"><h2>Commander's plan</h2></div>
-            <p>{c.state.plan.objective}</p>
-            <ol className="questions">{c.state.plan.questions?.map((q) => <li key={q}>{q}</li>)}</ol>
-          </section>
-        )}
+        <PlanPanel c={c} done={(name) => byAgent[name]?.state === "done"} running={(name) => byAgent[name]?.state === "working"} />
         {controls.length > 0 && (
           <section className="panel">
             <div className="panel-head"><h2>Control tests</h2><span className="muted">Pass or fail is computed by code. The agent chose the tests and explains them.</span></div>
@@ -576,7 +575,13 @@ function ExposureTab({ c, actions, onDone }: { c: CaseFull; actions: ActionView[
 function PersonaAction({ perm, label, busy, onClick, className = "primary" }: { perm: string; label: string; busy: boolean; onClick: (persona: string) => void; className?: string }) {
   const { persona, can, needs } = usePersona();
   // The button stays clickable for the wrong persona so the server's refusal can be shown on camera.
-  return <button className={className} disabled={busy} title={can(perm) ? "" : needs(perm)} onClick={() => onClick(persona)}>{busy ? "Working" : label}</button>;
+  const ok = can(perm);
+  const who = { decide: "Finance Director", close: "Finance Director", override: "Finance Director", audit_ack: "Internal Audit", "remediation:callback": "Procurement", "remediation:receiving": "Warehouse" }[perm];
+  return (
+    <button className={`${className} ${ok ? "" : "locked"}`} disabled={busy} title={ok ? "" : needs(perm)} onClick={() => onClick(persona)}>
+      {busy ? "Working" : <>{ok ? "" : "🔒 "}{label}{ok ? "" : <small> · {who} only</small>}</>}
+    </button>
+  );
 }
 
 // ------------------------------------------------------------------ Verification
@@ -829,11 +834,14 @@ function focusFrom(c: CaseFull, events: Ev[]): Focus {
 
 function CaseNetwork({ c, events }: { c: CaseFull; events: Ev[] }) {
   const [open, setOpen] = useState(true);
+  useEffect(() => {
+    if (location.hash === "#network") window.setTimeout(() => document.getElementById("network")?.scrollIntoView({ behavior: "smooth" }), 600);
+  }, []);
   const live = c.busy || c.status === "investigating";
   const focus = useMemo(() => (open ? focusFrom(c, events) : null), [events.length, open, c.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const refreshKey = events.filter((e) => ["action_done", "remediation_evidence", "closed"].includes(e.type)).length;
   return (
-    <section className="panel nxpanel casenet" data-tour="network">
+    <section className="panel nxpanel casenet" data-tour="network" id="network">
       <div className="panel-head">
         <h2>Network</h2>
         <span className="muted">{live ? "Live: the parts the agents are working on light up, with arrows, as they go." : `Everything within two steps of ${c.supplier_ids.join(", ")}. Drag, zoom, double-click to expand, or press Follow the money.`}</span>
@@ -841,6 +849,53 @@ function CaseNetwork({ c, events }: { c: CaseFull; events: Ev[] }) {
       </div>
       {open && <NetworkExplorer caseId={c.id} seeds={c.supplier_ids} compact focus={focus} refreshKey={refreshKey}
         onOpenSupplier={(sid) => { location.href = `/?supplier=${sid}`; }} />}
+    </section>
+  );
+}
+
+function RoleStrip() {
+  const { persona } = usePersona();
+  const p = PERSONAS[persona];
+  return (
+    <div className="rolestrip" style={{ borderLeftColor: ROLE_COLOR[persona] }}>
+      <span className="pchip" style={{ background: ROLE_COLOR[persona] }}>{p.name.split(" ").map((w) => w[0]).join("")}</span>
+      <span>Acting as <b>{p.name}, {p.role}</b>. You can {ROLE_CAN[persona]}</span>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ investigation plan
+
+const PLAN_STEPS = [
+  { q: "Are these suppliers really separate companies?", who: "Relationship Agent", how: "compares bank accounts, phones and addresses across all suppliers" },
+  { q: "What do the original documents say?", who: "Evidence Agent", how: "reads the invoices, receipts and emails, and quotes them" },
+  { q: "Which company rules were broken?", who: "Control Agent", how: "runs the six policy tests; code decides pass or fail" },
+  { q: "How much money is at risk?", who: "Exposure engine", how: "adds it up in code, invoice by invoice" },
+  { q: "Is there an innocent explanation?", who: "Challenge Agent", how: "argues the other side and looks for proof, such as a contract" },
+  { q: "What should happen before the payment run?", who: "Resolution Agent", how: "proposes holds and checks for a person to approve" },
+];
+
+function PlanPanel({ c, done, running }: { c: CaseFull; done: (a: string) => boolean; running: (a: string) => boolean }) {
+  const answered = PLAN_STEPS.filter((s) => done(s.who)).length;
+  return (
+    <section className="panel plan">
+      <div className="panel-head">
+        <h2>Investigation plan</h2>
+        <span className="muted">The questions this incident must answer, and who answers each one. {c.status === "new" ? "Not started." : `${answered} of ${PLAN_STEPS.length} answered.`}</span>
+      </div>
+      <ol className="planlist">
+        {PLAN_STEPS.map((s) => {
+          const st = done(s.who) ? "done" : running(s.who) ? "run" : "wait";
+          return (
+            <li key={s.q} className={`pl-${st}`}>
+              <span className="pl-dot">{st === "done" ? "✓" : st === "run" ? "…" : ""}</span>
+              <div><b>{s.q}</b><p><span className="pl-who">{s.who}</span> {s.how}</p></div>
+              <em>{st === "done" ? "Answered" : st === "run" ? "Working now" : "Waiting"}</em>
+            </li>
+          );
+        })}
+      </ol>
+      {c.state.plan?.objective && <details className="pl-raw"><summary>The Incident Commander's own wording</summary><p>{c.state.plan.objective}</p></details>}
     </section>
   );
 }

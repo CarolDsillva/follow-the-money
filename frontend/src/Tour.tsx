@@ -21,6 +21,7 @@ export function Tour({ steps, storageKey, onTab, autoStart }: { steps: TourStep[
     let tries = 0;
     let timer = 0;
     const measure = () => {
+      if (!step.target) { setRect(null); return; }
       const el = document.querySelector(step.target) as HTMLElement | null;
       if (!el) {
         if (tries++ < 20) timer = window.setTimeout(measure, 150);
@@ -68,11 +69,22 @@ export function Tour({ steps, storageKey, onTab, autoStart }: { steps: TourStep[
 }
 
 export const CASE_TOUR: TourStep[] = [
-  { target: "[data-tour=stepper]", title: "One incident, six stages", body: "Every case moves from Detected to Verified & closed. Right now the AI agents are investigating; you'll approve and verify later.", tab: "Investigation" },
-  { target: "[data-tour=kpis]", title: "What's at stake", body: "Potential exposure is calculated by code, never by the AI. The payment run releases in 33 hours, and the model cost of this whole investigation is shown live.", tab: "Investigation" },
-  { target: "[data-tour=agents]", title: "Eight specialists at work", body: "Each card is one agent with one job. Click a card to see exactly what it was given, which tools it called and what it returned.", tab: "Investigation" },
-  { target: "[data-tour=network]", title: "Follow the money", body: "Three suppliers that look unrelated share one bank account. While the agents work, whatever they're examining lights up here with arrows. Drag, zoom, double-click to expand, or press Follow the money.", tab: "Investigation" },
-  { target: "[data-tour=overview]", title: "The answer, in plain English", body: "What happened, why it was raised, how much, the evidence, the competing explanations and who acts next. Click any ID to see its source.", tab: "Overview" },
-  { target: "[data-tour=persona]", title: "You play every role", body: "Approvals need the Finance Director, fixes need each team. Switch persona here. Try approving as the AP lead first: the system will refuse.", tab: "Investigation" },
-  { target: "[data-tour=guide]", title: "Your next step, always", body: "This strip tells you what to do next and switches persona for you. Follow it to the end: approve, get refused at close, fix, verify, close.", tab: "Investigation" },
+  { target: "", title: "Welcome. Here's what you're looking at", tab: "Investigation",
+    body: "Follow the Money checks a company's supplier payments before they go out. A scan has flagged three invoices, $144,000 in total, about to be paid to three suppliers that look unrelated. AI agents are now investigating it, like a team of analysts. This one-minute tour shows you how to read the screen." },
+  { target: "[data-tour=stepper]", title: "Where the case is", tab: "Investigation",
+    body: "Every case goes through six stages, from Detected to Verified & closed. The highlighted stage is where it is now. The AI does the first three; you take part in Approve, Remediate and Verify." },
+  { target: "[data-tour=kpis]", title: "What's at stake", tab: "Investigation",
+    body: "The money about to be paid, and how much of it isn't backed by deliveries. Code calculates these numbers, never the AI. Model cost is what this whole AI investigation cost, in cents." },
+  { target: "[data-tour=network]", title: "The map of who is connected", tab: "Investigation",
+    body: "Each circle is a supplier, bank account, person, invoice or payment. Red rings are flagged by the rules. While the agents work, whatever they're examining glows blue, with arrows. Look for one bank account linked to three suppliers." },
+  { target: ".plan", title: "What the AI is trying to answer", tab: "Investigation",
+    body: "Six plain questions, from 'Are these suppliers really separate companies?' to 'What should happen before the payment run?'. Each is ticked off when the agent responsible finishes." },
+  { target: "[data-tour=agents]", title: "Who is doing the work", tab: "Investigation",
+    body: "Eight specialists, each with one job. Blue means working, green means done. Click any card to see exactly what it read, which tools it used and what it concluded." },
+  { target: "[data-tour=overview]", title: "The answer, in plain English", tab: "Overview",
+    body: "When the agents finish, this page answers: what happened, why it was flagged, how much is at risk, the evidence, the innocent explanations tested, and who must act next. Click any ID to see its source." },
+  { target: ".rolestrip", title: "You play the people", tab: "Investigation",
+    body: "Real decisions need the right person. Switch persona at the top right; buttons your role can't use show a lock. Try approving as the AP lead first: the system refuses. Then switch to the Finance Director." },
+  { target: "[data-tour=guide]", title: "Your next step, always", tab: "Investigation",
+    body: "This strip tells you what to do next and can switch persona for you. Follow it to the end: approve, try to close and get refused, fix, verify, then close. That's the whole story." },
 ];
