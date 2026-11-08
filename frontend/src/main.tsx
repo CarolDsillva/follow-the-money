@@ -4,6 +4,8 @@ import "@fontsource-variable/inter/index.css";
 import "@fontsource-variable/jetbrains-mono/index.css";
 import { App } from "./App";
 import "./styles.css";
+import "./landing.css";
+import "./hero.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

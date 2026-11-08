@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { costText, get, hoursUntil, post, STATUS, usd, type Overview } from "./api";
+import { costText, get, hoursUntil, STATUS, usd, type Overview } from "./api";
 import { CaseView } from "./Case";
 import { PersonaProvider, PersonaSwitch } from "./ctx";
+import { Landing, Mark, startDemo } from "./Landing";
 
 export function App() {
   const params = new URLSearchParams(location.search);
   const caseId = params.get("case");
+  if (!caseId && params.get("view") !== "incidents") return <Landing />;
   return (
     <PersonaProvider><div className="shell">
       <TopBar />
-      <div className="synthetic">Synthetic demonstration data. Northstar Manufacturing Group, its people, suppliers and records are fictional. No real payment or message can be sent.</div>
+      <div className="synthetic">Demo workspace · synthetic data for the fictional Northstar Manufacturing Group. Nothing here can pay anyone or contact a supplier.</div>
       {caseId ? <CaseView id={caseId} /> : <Inbox />}
     </div></PersonaProvider>
   );
@@ -19,12 +21,12 @@ function TopBar() {
   return (
     <header className="topbar">
       <a className="brand" href="/">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="9" fill="none" stroke="currentColor" strokeWidth="3" /><circle cx="16" cy="16" r="3" fill="currentColor" /></svg>
-        ControlRoom
+        <Mark />
+        Follow the Money
       </a>
       <span className="tenant">Northstar Manufacturing Group · Finance Control</span>
       <nav>
-        <a href="/">Incidents</a>
+        <a href="/?view=incidents">Incidents</a>
         <a href="/#how">How it works</a>
         <a href="/api/docs" target="_blank" rel="noreferrer">API</a>
       </nav>
@@ -55,9 +57,7 @@ function Inbox() {
   async function runFresh(template: string) {
     setBusy(template);
     try {
-      const { id } = await post<{ id: string }>(`/api/cases/${template}/rerun`);
-      await post(`/api/cases/${id}/investigate`);
-      location.href = `/?case=${id}`;
+      await startDemo(template);
     } catch (e) {
       setError((e as Error).message);
       setBusy(null);
@@ -76,12 +76,10 @@ function Inbox() {
 
   return (
     <main className="page">
-      <section className="hero">
+      <section className="inbox-head">
         <div>
-          <p className="eyebrow">Financial control incident response</p>
-          <h1>From financial alert to <em>verified</em> resolution.</h1>
-          <p className="lede">An alert says something looks wrong. ControlRoom's agents work out what happened across invoices, purchase orders, supplier records,
-            receipts and emails, argue against their own conclusion, scope the exposure in code, and only close the case once the controls are retested.</p>
+          <h1>Incidents</h1>
+          <p className="muted">Opened automatically by the payment-run scan. Pick one and start an investigation; the agents take about 90 seconds.</p>
         </div>
         <div className="runcard">
           <p className="eyebrow">Next payment run</p>
@@ -94,7 +92,7 @@ function Inbox() {
             <div style={{ width: `${(100 * inIncidents) / run.total}%` }} className="split-a" />
           </div>
           <p className="fine"><b className="amber">{usd(inIncidents)}</b> of this run is in open incidents; {usd(run.total - inIncidents)} is unaffected.</p>
-          <p className="fine">World clock {fmt(ov.world_now)}. Scan rule (code): an invoice at 90 to 100% of the {usd(ov.approval_limit)} approval limit (POL-01), grouped with others from the same or a linked supplier in the same run.</p>
+          <p className="fine">Scan rule (code): invoices at 90 to 100% of the {usd(ov.approval_limit)} approval limit, grouped by the same or a linked supplier.</p>
         </div>
       </section>
 
@@ -159,30 +157,6 @@ function Inbox() {
         </section>
       )}
 
-      <section className="how" id="how">
-        <h2>How it works</h2>
-        <div className="flow">
-          {[
-            ["Incident Commander", "Plans the investigation and writes the briefing. Can't approve anything.", ov.infrastructure.models.challenge],
-            ["Evidence Agent", "Follows invoice, PO, request, receipt and payment, and reads the original documents. A citation that doesn't exist is rejected.", ov.infrastructure.models.specialists],
-            ["Relationship Agent", "Assesses links the deterministic matcher finds: shared bank accounts, phones, addresses, look-alike email domains.", ov.infrastructure.models.specialists],
-            ["Control Agent", "Chooses and runs policy tests. Pass or fail is computed by code.", ov.infrastructure.models.specialists],
-            ["Exposure engine", "Pure code. Every dollar has a formula and a source record.", "no model"],
-            ["Challenge Agent", "Argues for the harmless explanation and goes looking for the proof.", ov.infrastructure.models.challenge],
-            ["Resolution Agent", "Proposes actions from a fixed catalogue. Nothing runs until a person approves. There is no payment action.", ov.infrastructure.models.specialists],
-            ["Verification Agent", "Retests the controls against remediation evidence. Code decides whether the case may close.", ov.infrastructure.models.specialists],
-          ].map(([n, d, m]) => (
-            <div className="flowcard" key={n}><h3>{n}</h3><p>{d}</p><span className="model">{m}</span></div>
-          ))}
-        </div>
-        <h2>Running on Vultr</h2>
-        <div className="infra">
-          <div><h3>Cloud Compute</h3><p>{ov.infrastructure.compute}. API, LangGraph orchestrator, rules engine and ERP simulator.</p></div>
-          <div><h3>Serverless Inference</h3><p>Every model call, from every agent. Costs are measured per call from Vultr's price list.</p></div>
-          <div><h3>Managed PostgreSQL</h3><p>{ov.infrastructure.database}. ERP records, cases, the event log and LangGraph checkpoints, so an approval survives a restart.</p></div>
-          <div><h3>Object Storage</h3><p>{ov.infrastructure.object_storage}. The {ov.documents} original invoices, emails and receipts the agents read, and the signed closing reports.</p></div>
-        </div>
-      </section>
     </main>
   );
 }

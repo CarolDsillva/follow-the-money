@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type Ev, type Graph } from "./api";
 import { fmt, Pill } from "./App";
 import { Cite, DrawerProvider, usePersona } from "./ctx";
@@ -131,6 +131,7 @@ function CaseInner({ id }: { id: string }) {
         ))}
       </ol>
 
+      <Guide c={c} events={events} actions={ov?.actions ?? []} go={(t) => { setTab(t); setFollow(false); }} />
       {c.status === "new" && <StartBar c={c} onStarted={refresh} />}
       {c.status === "error" && (
         <div className="startbar errbar">
@@ -231,7 +232,7 @@ function OverviewTab({ c, ov, go }: { c: CaseFull; ov: OverviewData | null; go: 
         <p className="qlabel">Next step</p>
         <p className="qbig">{o.next_step}</p>
         <p>Owner: <b>{o.owner}</b></p>
-        <p className="fine">"Approved for payment" on an invoice is the ERP's existing business approval. ControlRoom decisions are separate: they approve or reject a hold, a check or a task, and nothing ControlRoom does pays anyone.</p>
+        <p className="fine">"Approved for payment" on an invoice is the ERP's existing business approval. Follow the Money decisions are separate: they approve or reject a hold, a check or a task, and nothing Follow the Money does pays anyone.</p>
         {c.waiting_for === "approval" && !c.busy && <button className="primary" onClick={() => go("Exposure & actions")}>Review the proposed actions</button>}
         {c.status === "remediation" && <button className="primary" onClick={() => go("Verification & audit")}>Go to remediation and verification</button>}
       </section>
@@ -392,7 +393,7 @@ function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
           <section className="panel alert">
             <h2>Instructions found inside a document</h2>
             {guards.slice(0, 1).map((g) => <p key={g.seq}><Cite id={g.data.document_id} /> {g.text}</p>)}
-            <p className="fine">The email says the bank change "has been verified by your CFO" and tells automated assistants to mark it confirmed. ControlRoom records this as an
+            <p className="fine">The email says the bank change "has been verified by your CFO" and tells automated assistants to mark it confirmed. Follow the Money records this as an
               unverified claim. An email can't prove who owns a bank account.</p>
             {(st.lookalikes ?? []).map((l) => <p key={l.document_id}><strong>Look-alike sender:</strong> {l.sender_domain} imitates {l.real_domain} ({l.supplier_id}).</p>)}
           </section>
@@ -706,6 +707,79 @@ function TaskDone({ caseId, actionId, owner, onDone }: { caseId: string; actionI
       <input className="reason" placeholder={`What ${owner.split(",")[0]} found (at least 10 characters)`} value={note} onChange={(e) => setNote(e.target.value)} />
       <button disabled={note.trim().length < 10} onClick={() => post(`/api/cases/${caseId}/tasks/${actionId}/complete`, { persona, note }).then(onDone).catch((e) => setErr(e.message))}>Mark done</button>
       {err && <span className="error small">{err}</span>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ guided demo
+
+const PERSONA_OF: Record<string, string> = { "Grace Liu": "procurement", "Ana Petrov": "warehouse", "Rafael Moreno": "internal_audit", "Elena Brandt": "ap_lead", "Tom Okafor": "finance_director" };
+
+function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions: ActionView[]; go: (t: Tab) => void }) {
+  const { persona, setPersona } = usePersona();
+  const [hidden, setHidden] = useState(() => sessionStorage.getItem("guide-hidden") === "1");
+  if (hidden) return null;
+  const types = new Set(events.map((e) => e.type));
+  const docs = c.state.remediation_docs ?? [];
+  const isA = c.template === "INC-0412";
+  let step = "", text: React.ReactNode = "", btn: { label: string; run: () => void } | null = null;
+  const as = (p: string, t: Tab) => () => { setPersona(p); go(t); };
+
+  if (c.status === "new") {
+    step = "Step 1 of 5"; text = <>Click <b>Start investigation</b>. Eight agents will work through the case in about 90 seconds.</>;
+  } else if (c.status === "investigating" || (c.busy && c.status !== "remediation")) {
+    step = "Step 1 of 5"; text = <>The agents are investigating. Watch them on <b>Investigation</b>, or see the shared bank account on the <b>Relationship map</b>. It takes about 90 seconds.</>;
+    btn = { label: "Watch the agents", run: () => go("Investigation") };
+  } else if (c.status === "error") {
+    step = "Blocked"; text = <>A step failed. Click <b>Retry from checkpoint</b>; finished work is kept.</>;
+  } else if (c.waiting_for === "approval") {
+    step = "Step 2 of 5";
+    if (persona !== "finance_director" && !types.has("permission_denied")) {
+      text = <>Read the <b>Overview</b>, then on <b>Exposure &amp; actions</b> click <b>Submit decisions</b> as Elena, the AP lead. The system will refuse: only the Finance Director can approve.</>;
+      btn = { label: "Go to the actions", run: () => go("Exposure & actions") };
+    } else {
+      text = <>Now act as <b>Tom Okafor, Finance Director</b>, and approve the plan. Nothing here can pay anyone.</>;
+      btn = { label: "Switch to Tom and review", run: as("finance_director", "Exposure & actions") };
+    }
+  } else if (c.status === "remediation") {
+    const refused = types.has("close_refused");
+    const open = actions.filter((a) => a.decision === "approved" && a.status === "task_open");
+    const audit = actions.find((a) => a.kind === "escalate_to_audit" && a.decision === "approved" && !a.acknowledged_by);
+    const ready = c.state.verification?.may_close;
+    if (!refused) {
+      step = "Step 3 of 5"; text = <>Try to close the incident now, as the Finance Director. It will be <b>refused</b>, because the fixes haven't been proven yet.</>;
+      btn = { label: "Switch to Tom and try closing", run: as("finance_director", "Verification & audit") };
+    } else if (isA && !docs.includes("DOC-CB-301")) {
+      step = "Step 4 of 5"; text = <>Play <b>Grace Liu, Procurement</b>: call the supplier on the number on file and check the new supplier. Click <b>Procurement: callback and due diligence</b>.</>;
+      btn = { label: "Switch to Grace", run: as("procurement", "Verification & audit") };
+    } else if (isA && !docs.includes("DOC-RC-7104")) {
+      step = "Step 4 of 5"; text = <>Play <b>Ana Petrov, Warehouse</b>: confirm what was actually delivered. Click <b>Warehouse and AP: confirm receipts</b>.</>;
+      btn = { label: "Switch to Ana", run: as("warehouse", "Verification & audit") };
+    } else if (audit) {
+      step = "Step 4 of 5"; text = <>Play <b>Rafael Moreno, Internal Audit</b>: acknowledge the approval-pattern finding.</>;
+      btn = { label: "Switch to Rafael", run: as("internal_audit", "Verification & audit") };
+    } else if (open.length) {
+      const owner = open[0].owner.split(",")[0];
+      step = "Step 4 of 5"; text = <>Play <b>{open[0].owner}</b>: complete the task <b>{open[0].label}</b> with a short note.</>;
+      btn = { label: `Switch to ${owner}`, run: as(PERSONA_OF[owner] ?? "ap_lead", "Verification & audit") };
+    } else if (!ready) {
+      step = "Step 5 of 5"; text = <>Click <b>Run verification</b>. Code retests every control against the new evidence.</>;
+      btn = { label: "Go to verification", run: () => go("Verification & audit") };
+    } else {
+      step = "Step 5 of 5"; text = <>Every check passes. Close the incident as <b>Tom Okafor</b>. A signed report goes to Vultr Object Storage.</>;
+      btn = { label: "Switch to Tom and close", run: as("finance_director", "Verification & audit") };
+    }
+  } else if (c.status.startsWith("closed")) {
+    step = "Done"; text = <>Closed {c.status === "closed" ? "after verification" : "by override"}. Open the signed report, export the record, or try the harmless look-alike case.</>;
+    btn = { label: "Back to incidents", run: () => { location.href = "/?view=incidents"; } };
+  }
+  if (!text) return null;
+  return (
+    <div className="guide" role="note">
+      <span className="gstep">Guided demo · {step}</span>
+      <p>{text}</p>
+      {btn && <button onClick={btn.run}>{btn.label}</button>}
+      <button className="gx" onClick={() => { sessionStorage.setItem("guide-hidden", "1"); setHidden(true); }} aria-label="Hide the guide">Hide</button>
     </div>
   );
 }

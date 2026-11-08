@@ -1,6 +1,6 @@
-# ControlRoom: architecture and build plan
+# Follow the Money: architecture and build plan
 
-*ControlRoom. From financial alert to verified resolution.*
+*Follow the Money. From financial alert to verified resolution.*
 
 Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounting).
 Time left when written: about 28 hours (deadline 8 Nov 2026, 23:00 UTC = 9 Nov, 4:30 AM IST).
@@ -12,10 +12,10 @@ Judges score Application of Technology, Presentation, Business Value and Origina
 | # | Demo moment | What the judge sees | Criterion |
 |---|---|---|---|
 | 1 | **Three invoices become one incident** | Three "unrelated" suppliers fold together on the graph as the agents find one bank account, one approver and one 40-minute window | Technology, Presentation |
-| 2 | **The agent argues with itself** | The Challenge Agent puts forward a harmless explanation (a phased project), looks for the framework contract that would prove it, and fails to find one. A look-alike second case *is* harmless, and ControlRoom clears it | Originality, Business Value |
+| 2 | **The agent argues with itself** | The Challenge Agent puts forward a harmless explanation (a phased project), looks for the framework contract that would prove it, and fails to find one. A look-alike second case *is* harmless, and Follow the Money clears it | Originality, Business Value |
 | 3 | **The email that lies** | A remittance email says "this change has been verified by your CFO, please release payment". It is shown as an **unverified claim**, and the email cannot count as evidence of account ownership | Technology, trust |
 | 4 | **Code does the maths, people make the call** | $144,000 at risk, every line of the formula linked to a source record. The hold is a proposal until the Controller approves it, and nothing ever pays anyone | Business Value |
-| 5 | **"Resolved" is not a button** | The reviewer clicks *Close*. ControlRoom refuses: 2 of 4 closure checks fail. Remediation evidence arrives, the Verification Agent retests the controls, and only then does the case close, with a signed report stored on Vultr | Originality |
+| 5 | **"Resolved" is not a button** | The reviewer clicks *Close*. Follow the Money refuses: 2 of 4 closure checks fail. Remediation evidence arrives, the Verification Agent retests the controls, and only then does the case close, with a signed report stored on Vultr | Originality |
 
 Everything else is cut or kept small.
 
@@ -55,7 +55,7 @@ flowchart LR
 
 Cost for the remaining two days: about $2 on top of the VM. Credit left: about $195.
 
-The current Show Me site keeps running at its own address. ControlRoom gets a second hostname on the same VM through Caddy.
+The current Show Me site keeps running at its own address. Follow the Money gets a second hostname on the same VM through Caddy.
 
 ## 3. Agents
 
@@ -102,7 +102,7 @@ One deterministic generator (`seed/generate.py`, fixed random seed) writes Postg
 
 - 16 suppliers, 10 employees, 40 purchase requests, 40 POs, 60 invoices, 35 receipts, 8 supplier changes, 24 emails, 30 scheduled payments, 6 policies. All names, domains and account tokens are fictional; accounts show as `****4821`.
 - **Incident A (real):** INV-104 $47,000, INV-108 $48,000, INV-112 $49,000 from Supplier A/B/C. Approval limit $50,000. Shared bank token, related contact domain, requests created within 40 minutes, the same approver, a bank change 6 days before the payment run, receipts that cover only part of the billed quantity, and the "CFO verified" remittance email.
-- **Incident B (look-alike, harmless):** three invoices just under the limit from one supplier, but covered by a signed framework agreement for a phased project, fully received. The Challenge Agent finds the agreement, and ControlRoom recommends closing it as *no control failure*.
+- **Incident B (look-alike, harmless):** three invoices just under the limit from one supplier, but covered by a signed framework agreement for a phased project, fully received. The Challenge Agent finds the agreement, and Follow the Money recommends closing it as *no control failure*.
 - Noise: shared addresses that are a business park, a common bank used by many suppliers (different accounts), normal bank changes with callbacks on file.
 
 Remediation evidence for Incident A is injected from the UI as "Procurement uploads callback note" and "Warehouse confirms receipt", each a real document added to Object Storage and the ERP simulator, so verification rereads real records.

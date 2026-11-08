@@ -1,18 +1,18 @@
-# ControlRoom
+# Follow the Money
 
-**From financial alert to verified resolution.**
+**Follow every dollar before it leaves.** AI agents that investigate financial control incidents, from alert to verified resolution.
 
 Live demo: https://controlroom.137-220-32-178.sslip.io · Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounting)
 
-> All data in the demo is synthetic. Northstar Manufacturing Group, its people, suppliers, bank tokens and records are fictional. ControlRoom cannot pay anyone or send any message.
+> All data in the demo is synthetic. Northstar Manufacturing Group, its people, suppliers, bank tokens and records are fictional. Follow the Money cannot pay anyone or send any message.
 
 ## The problem
 
 A finance alert says *something looks wrong*. It doesn't say what happened, how much is at risk, or what to do. Before the next payment run, an analyst has to pull invoices, purchase orders, supplier master data, receiving notes and emails from different systems, connect them, work out the exposure, coordinate AP, procurement, warehouse and audit, and later check that the fix actually worked. Cases get marked "resolved" because someone clicked a button, not because the control was retested.
 
-## What ControlRoom does
+## What Follow the Money does
 
-ControlRoom is an incident-response workspace for financial control exceptions. A team of agents:
+Follow the Money is an incident-response workspace for financial control exceptions. A team of agents:
 
 1. **Reconstructs** the incident across ERP records and the original documents.
 2. **Links** entities that look unrelated one invoice at a time: shared bank accounts, phones, addresses, look-alike email domains.
@@ -23,6 +23,8 @@ ControlRoom is an incident-response workspace for financial control exceptions. 
 7. **Verifies remediation.** The case closes only when code-run closure checks pass, or a named person overrides with a written reason. The closing report is Ed25519-signed and stored in Vultr Object Storage.
 
 ## What a reviewer sees
+
+- **Landing page with a live money map**: every supplier due in the next payment run, flows sized by amount, linked suppliers and incidents highlighted in red. Click an incident to open it. **Run the live demo** starts a fresh investigation with a step-by-step guide.
 
 - **Overview** answers the seven questions first: what happened, why it was raised (with the $50,000 limit, the 90 to 100% band and the grouping rule), how much is affected (pending, on hold, already paid, confirmed loss: none), what the evidence shows, the competing explanations and unknowns, and the next step with its owner.
 - **Timeline** is built by code from ERP records, documents and the audit log; every line names its source.
@@ -36,7 +38,7 @@ ControlRoom is an incident-response workspace for financial control exceptions. 
 
 The weekly payment run (`RUN-1110`, $379,387, 18 payments) releases in 33 hours. A deterministic scan opens two incidents:
 
-| Incident | What the scan saw | What ControlRoom finds |
+| Incident | What the scan saw | What Follow the Money finds |
 |---|---|---|
 | **INC-0412** | Three invoices ($47k, $48k, $49k) from three linked suppliers, each under the $50k approval limit | One bank account `****4821` shared by all three. A bank change on Ridgeline 7 days before the run, requested by an email from `ridgeline-c0mponents.example` that claims "verified by your CFO" and instructs automated assistants to approve it. One approver signed all three requests within 39 minutes. $67,800 billed but not received. Halvorsen was created 26 days ago at the same unit and phone as Kestrel. **$144,000 potentially exposed.** |
 | **INC-0413** | Three near-limit invoices from one supplier | The look-alike. The Challenge Agent finds framework agreement `FA-2026-03`, code verifies that it covers the suppliers, amounts and approver, and the split-purchase exception is cleared. **No control failure.** |

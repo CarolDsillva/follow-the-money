@@ -66,6 +66,34 @@ def _inbox_row(c: dict) -> dict:
             "severity": views.severity(full, full["state"]), "owner": "Elena Brandt, AP Operations Lead"}
 
 
+@app.get("/api/network")
+def network():
+    """Every supplier, the money each is due in the next payment run, how suppliers are linked,
+    and which incidents involve them. Built by code from the base ERP records."""
+    world = store.world(docs=False)
+    run = world.run
+    templates = [c for c in store.cases() if c["id"] == c.get("template")]
+    incident_of = {}
+    for c in templates:
+        full = store.case(c["id"])
+        for sid in c["supplier_ids"]:
+            incident_of[sid] = {"id": c["id"], "title": c["title"], "severity": views.severity(full, full["state"])["level"],
+                                "exposure": float(c["potential_exposure"])}
+    pay_at = run["scheduled_for"]
+    suppliers = []
+    for s in world.records["supplier"]:
+        pays = [p for p in world.records["payment"] if p["supplier_id"] == s["id"] and p["run_id"] == run["id"]]
+        recent_change = any(ch["field"] == "bank_account_token" and not ch.get("callback_verified")
+                            for ch in world.find("supplier_change", supplier_id=s["id"]))
+        suppliers.append({"id": s["id"], "name": s["legal_name"], "in_run": sum(p["amount"] for p in pays), "payments": len(pays),
+                          "bank": s["bank_account_token"], "new": s["created_at"] >= "2026-10-01", "bank_changed": recent_change,
+                          "incident": incident_of.get(s["id"])})
+    links = [{"from": l["from"], "to": l["to"], "attribute": l["attribute"], "strength": l["strength"], "explanation": l["explanation"]}
+             for l in rules.shared_attributes(world)]
+    return {"run": {**run, "total": sum(s["in_run"] for s in suppliers), "payments": sum(s["payments"] for s in suppliers), "at": pay_at},
+            "suppliers": suppliers, "links": links, "incidents": [{"id": c["id"], "title": c["title"]} for c in templates]}
+
+
 @app.get("/api/overview")
 def overview():
     world = store.world(docs=False)
