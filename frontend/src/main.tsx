@@ -7,6 +7,7 @@ import "./styles.css";
 import "./landing.css";
 import "./hero.css";
 import "./network.css";
+import "./vultr.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

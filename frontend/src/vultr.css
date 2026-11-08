@@ -1,0 +1,41 @@
+/* ============ how-it-works numbers ============ */
+.lp-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 22px; }
+.lp-nums div { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px; }
+.lp-nums b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: #0b1d3a; }
+.lp-nums span { font-size: 13.5px; color: #475569; }
+
+/* ============ Built on Vultr ============ */
+.vx { position: relative; margin: 18px; border-radius: 18px; overflow: hidden; isolation: isolate; color: #ffffff;
+  background: radial-gradient(120% 120% at 100% 0%, #0a2350 0%, #06122a 55%, #071733 100%);
+  display: grid; grid-template-columns: 1fr 1.15fr; gap: 40px; align-items: center; padding: 80px 64px; }
+.vx-glow { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(40% 50% at 72% 50%, rgba(59, 130, 246, 0.35), rgba(30, 64, 175, 0) 70%),
+              radial-gradient(25% 30% at 72% 50%, rgba(186, 230, 253, 0.35), rgba(125, 211, 252, 0) 70%); }
+.lp-kicker.light { color: #7dd3fc; }
+.vx-text h2 { font-size: 40px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 650; margin: 0 0 14px; color: #ffffff; }
+.vx-text > p { color: rgba(255, 255, 255, 0.78); font-size: 16.5px; line-height: 1.6; max-width: 480px; margin: 0 0 26px; }
+.vx-facts { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.vx-facts li { font-size: 14px; color: rgba(255, 255, 255, 0.75); padding: 10px 14px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+.vx-facts b { color: #ffffff; margin-right: 8px; }
+.vx-diagram { position: relative; height: 420px; }
+.vx-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.vx-lines path { stroke: rgba(125, 211, 252, 0.7); stroke-width: 2; fill: none; stroke-dasharray: 6 8; animation: mmflow 1.4s linear infinite; }
+.vx-node { position: absolute; display: flex; gap: 12px; align-items: center; width: 250px; padding: 14px 16px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07); border: 1px solid rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); }
+.vx-node h3 { font-size: 15px; margin: 0 0 3px; color: #ffffff; }
+.vx-node p { font-size: 12.5px; color: rgba(255, 255, 255, 0.72); margin: 0; line-height: 1.4; }
+.vx-ico { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: #ffffff; color: #0b1d3a;
+  font-weight: 800; font-size: 12px; letter-spacing: 0.02em; }
+.vx-core { left: 50%; top: 50%; transform: translate(-50%, -50%); width: 290px; padding: 18px 20px; background: #ffffff; border-color: #ffffff;
+  box-shadow: 0 0 0 10px rgba(125, 211, 252, 0.12), 0 20px 60px rgba(14, 165, 233, 0.35); }
+.vx-core h3 { color: #0b1d3a; font-size: 17px; }
+.vx-core p { color: #475569; }
+.vx-core .vx-ico { background: #0b1d3a; color: #ffffff; }
+.vx-top { left: 50%; top: 0; transform: translateX(-50%); }
+.vx-left { left: 0; bottom: 0; }
+.vx-right { right: 0; bottom: 0; }
+@media (max-width: 1050px) {
+  .vx { grid-template-columns: 1fr; padding: 56px 28px; }
+  .vx-diagram { height: 460px; }
+  .lp-nums { grid-template-columns: 1fr 1fr; }
+}

@@ -50,8 +50,10 @@ function neighbours(g: Graph, ids: Set<string>, hops: number, skipHubs = true) {
   return seen;
 }
 
-export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, compact = false }:
-  { caseId?: string; seeds: string[]; hops?: number; onOpenSupplier?: (id: string) => void; compact?: boolean }) {
+export type Focus = { ids: string[]; caption: string; agent: string } | null;
+
+export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, compact = false, focus = null, refreshKey = 0 }:
+  { caseId?: string; seeds: string[]; hops?: number; onOpenSupplier?: (id: string) => void; compact?: boolean; focus?: Focus; refreshKey?: number }) {
   const box = useRef<HTMLDivElement>(null);
   const cy = useRef<Core | null>(null);
   const [g, setG] = useState<Graph | null>(null);
@@ -74,6 +76,22 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
       setBounds([0, Math.ceil(max / 1000) * 1000]);
     });
   }, [caseId, seedKey, hops]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!refreshKey) return;
+    get<Graph>(`/api/entity-graph${caseId ? `?case=${caseId}` : ""}`).then((gr) => setG(gr));
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // live focus: make sure the focused nodes are on the canvas
+  const focusKey = focus?.ids.join(",") ?? "";
+  useEffect(() => {
+    if (!g || !focus?.ids.length) return;
+    const known = new Set(g.nodes.map((n) => n.id));
+    const missing = focus.ids.filter((id) => known.has(id) && !visible.has(id));
+    if (missing.length) setVisible((v) => new Set([...v, ...missing]));
+  }, [focusKey, g]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (cy.current) applyFocus(cy.current); }, [focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shown = useMemo(() => {
     if (!g) return { nodes: [] as GNode[], edges: [] as GEdge[] };
@@ -120,6 +138,9 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
         { selector: "edge:selected", style: { "line-color": "#0f172a", "target-arrow-color": "#0f172a", width: 3 } },
         { selector: ".dim", style: { opacity: 0.12 } },
         { selector: "edge.flow", style: { "line-color": "#16a34a", "target-arrow-color": "#16a34a", width: 5, opacity: 1, "line-style": "solid" } },
+        { selector: "node.focus", style: { "underlay-color": "#3b82f6", "underlay-opacity": 0.55, "underlay-padding": 14, "border-color": "#1d4ed8", "border-width": 5, "z-index": 20 } },
+        { selector: "edge.focus", style: { "line-color": "#2563eb", "target-arrow-color": "#2563eb", width: 4, opacity: 1, "line-style": "solid", "arrow-scale": 1.3, "z-index": 19 } },
+        { selector: ".fdim", style: { opacity: 0.22 } },
         { selector: "node.hit", style: { "underlay-color": "#facc15", "underlay-opacity": 0.6, "underlay-padding": 12 } },
       ],
       layout: positions.size ? { name: "preset", positions: (n: { id: () => string }) => positions.get(n.id()) ?? { x: 0, y: 0 } } as cytoscape.LayoutOptions
@@ -140,6 +161,7 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
     c.on("dbltap", "node", (ev) => expand(ev.target.id()));
     cy.current = c;
     applyFollow(c, follow);
+    applyFocus(c);
     return undefined;
   }, [shown]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -153,6 +175,25 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
     c.elements().addClass("dim");
     money.removeClass("dim").addClass("flow");
     money.connectedNodes().removeClass("dim");
+  }
+
+  function applyFocus(c: Core) {
+    c.elements().removeClass("focus fdim");
+    window.clearInterval((c as unknown as { _pulse?: number })._pulse);
+    if (!focus?.ids.length) return;
+    const nodes = c.nodes().filter((n) => focus.ids.includes(n.id()));
+    if (!nodes.length) return;
+    const edges = nodes.connectedEdges().filter((e) => focus.ids.includes(e.source().id()) || focus.ids.includes(e.target().id()));
+    c.elements().addClass("fdim");
+    nodes.removeClass("fdim").addClass("focus");
+    edges.removeClass("fdim").addClass("focus");
+    edges.connectedNodes().removeClass("fdim");
+    c.animate({ fit: { eles: nodes.union(edges.connectedNodes()), padding: 90 } }, { duration: 500 });
+    let on = true;
+    (c as unknown as { _pulse?: number })._pulse = window.setInterval(() => {
+      on = !on;
+      nodes.style("underlay-padding", on ? 14 : 22);
+    }, 600);
   }
 
   function expand(id: string) {
@@ -273,6 +314,9 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
             </>);
           })()}
         </div>
+      )}
+      {focus && focus.ids.length > 0 && (
+        <div className="nx-now"><i />{focus.agent}<span>{focus.caption}</span></div>
       )}
       <div className="nx-status">{shown.nodes.length} nodes · {shown.edges.length} edges · scroll to zoom, drag to move</div>
     </div>

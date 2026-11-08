@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type Ev, type Graph } from "./api";
 import { fmt, Pill } from "./App";
 import { Cite, DrawerProvider, usePersona } from "./ctx";
-import { NetworkExplorer } from "./Network";
+import { NetworkExplorer, type Focus } from "./Network";
 import { CASE_TOUR, Tour } from "./Tour";
 
 const AGENTS = [
@@ -16,7 +16,7 @@ const AGENTS = [
   { name: "Verification Agent", job: "Retest controls", after: "approval and remediation evidence" },
 ];
 
-const TABS = ["Overview", "Investigation", "Network graph", "Timeline", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
+const TABS = ["Overview", "Investigation", "Timeline", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
 type Tab = (typeof TABS)[number];
 
 const STEPS = [
@@ -57,7 +57,7 @@ function stepIndex(c: CaseFull, events: Ev[]): number {
 }
 
 const TAB_FOR: Record<string, Tab> = {
-  plan: "Investigation", evidence: "Evidence & hypotheses", links: "Network graph", controls: "Investigation",
+  plan: "Investigation", evidence: "Evidence & hypotheses", links: "Overview", controls: "Investigation",
   exposure: "Exposure & actions", hypotheses: "Evidence & hypotheses", briefing: "Overview", actions: "Exposure & actions",
   action_done: "Verification & audit", close_refused: "Verification & audit", verification: "Verification & audit", closed: "Overview",
 };
@@ -71,8 +71,8 @@ function CaseInner({ id }: { id: string }) {
   const [ov, setOv] = useState<OverviewData | null>(null);
   const [events, setEvents] = useState<Ev[]>([]);
   const [, setGraph] = useState<Graph | null>(null);
-  const [tab, setTab] = useState<Tab>("Overview");
-  const [follow, setFollow] = useState(true);
+  const [tab, setTab] = useState<Tab>("Investigation");
+  const [follow, setFollow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const last = useRef(0);
   const refreshTimer = useRef<number | null>(null);
@@ -144,6 +144,8 @@ function CaseInner({ id }: { id: string }) {
       )}
       {error && <p className="error" role="alert">{error}</p>}
 
+      <CaseNetwork c={c} events={events} />
+
       <div className="tabs" role="tablist">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => { setTab(t); setFollow(false); }}>
@@ -156,13 +158,6 @@ function CaseInner({ id }: { id: string }) {
       {tab === "Overview" && <OverviewTab c={c} ov={ov} go={(t) => { setTab(t); setFollow(false); }} />}
       {tab === "Investigation" && <Investigation c={c} events={events} />}
       {tab === "Timeline" && <TimelineTab c={c} events={events} />}
-      {tab === "Network graph" && (
-        <section className="panel nxpanel" data-tour="network">
-          <div className="panel-head"><h2>Network graph</h2>
-            <span className="muted">Everything within two steps of {c.supplier_ids.join(", ")}, as this case sees it. Seeds in bold; red rings are flagged by code. Try <b>Follow the money</b>.</span></div>
-          <NetworkExplorer caseId={c.id} seeds={c.supplier_ids} onOpenSupplier={(sid) => { location.href = `/?supplier=${sid}`; }} />
-        </section>
-      )}
       {tab === "Evidence & hypotheses" && <EvidenceTab c={c} events={events} />}
       {tab === "Exposure & actions" && <ExposureTab c={c} actions={ov?.actions ?? []} onDone={refresh} />}
       {tab === "Verification & audit" && <VerifyTab c={c} events={events} actions={ov?.actions ?? []} criteria={ov?.criteria ?? []} onDone={refresh} />}
@@ -218,7 +213,7 @@ function OverviewTab({ c, ov, go }: { c: CaseFull; ov: OverviewData | null; go: 
           <div><dt>Already paid</dt><dd>{usd(h.already_paid)}</dd></div>
           <div><dt>Confirmed loss</dt><dd>None established</dd></div>
         </dl>
-        <button className="linkbtn" onClick={() => go("Exposure & actions")}>See the calculation →</button> <button className="linkbtn" onClick={() => go("Network graph")}>See the network →</button>
+        <button className="linkbtn" onClick={() => go("Exposure & actions")}>See the calculation →</button> <button className="linkbtn" onClick={() => document.querySelector("[data-tour=network]")?.scrollIntoView({ behavior: "smooth" })}>See the network ↑</button>
       </section>
       <section className="panel q">
         <p className="qlabel">What the evidence shows</p>
@@ -737,7 +732,7 @@ function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions:
   if (c.status === "new") {
     step = "Step 1 of 5"; text = <>Click <b>Start investigation</b>. Eight agents will work through the case in about 90 seconds.</>;
   } else if (c.status === "investigating" || (c.busy && c.status !== "remediation")) {
-    step = "Step 1 of 5"; text = <>The agents are investigating. Watch them on <b>Investigation</b>, or see the shared bank account on the <b>Network graph</b>. It takes about 90 seconds.</>;
+    step = "Step 1 of 5"; text = <>The agents are investigating. Watch them on <b>Investigation</b>, or watch the network above light up as they work. It takes about 90 seconds.</>;
     btn = { label: "Watch the agents", run: () => go("Investigation") };
   } else if (c.status === "error") {
     step = "Blocked"; text = <>A step failed. Click <b>Retry from checkpoint</b>; finished work is kept.</>;
@@ -790,5 +785,58 @@ function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions:
       {btn && <button onClick={btn.run}>{btn.label}</button>}
       <button className="gx" onClick={() => { sessionStorage.setItem("guide-hidden", "1"); setHidden(true); }} aria-label="Hide the guide">Hide</button>
     </div>
+  );
+}
+
+// ------------------------------------------------------------------ live network focus
+
+const ID_RE = /\b(?:DOC-)?((?:INV|PR|SUP|EML|CHG|PAY|GRN|FA|EMP)-[A-Z0-9-]*\d)\b/g;
+
+function idsIn(text: string): string[] {
+  const out = new Set<string>();
+  for (const m of text.matchAll(ID_RE)) out.add(m[1]);
+  return [...out];
+}
+
+function focusFrom(c: CaseFull, events: Ev[]): Focus {
+  const st = c.state;
+  for (let i = events.length - 1; i >= 0 && i > events.length - 12; i--) {
+    const e = events[i];
+    let ids: string[] = [];
+    let caption = e.text;
+    if (e.type === "tool_call" || e.type === "untrusted_instruction" || e.type === "agent_started") ids = idsIn(`${e.text} ${JSON.stringify(e.data?.arguments ?? {})}`);
+    if (e.type === "agent_started") ids = ids.length ? ids : c.supplier_ids;
+    if (e.type === "links") {
+      const attrs = (st.links ?? []).filter((l) => l.strength !== "fact" && l.strength !== "weak");
+      ids = [...new Set(attrs.flatMap((l) => [l.from, l.to, `${l.attribute === "bank_account_token" ? "BANK" : l.attribute === "phone" ? "PHONE" : "ADDR"}:${l.value}`]))];
+      caption = "Shared identifiers found between suppliers";
+    }
+    if (e.type === "controls") { ids = (st.controls ?? []).filter((x) => x.status === "exception").flatMap((x) => x.records ?? []); caption = e.text; }
+    if (e.type === "exposure") { ids = (st.exposure?.lines ?? []).flatMap((l) => l.records); caption = "Money at risk in the payment run"; }
+    if (e.type === "finding_downgraded" || e.type === "alternative_rejected" || e.type === "hypotheses") ids = idsIn(`${e.text} ${JSON.stringify(e.data ?? {})}`);
+    if (e.type === "actions" || e.type === "decision" || e.type === "action_done" || e.type === "task_created") ids = idsIn(`${e.text} ${JSON.stringify(e.data ?? {})}`);
+    if (e.type === "remediation_evidence") ids = idsIn(JSON.stringify(e.data ?? {}));
+    if (e.type === "checks" || e.type === "close_refused") ids = idsIn(JSON.stringify(e.data ?? {}));
+    ids = ids.filter((x) => !x.startsWith("PO-"));
+    if (ids.length) return { ids: ids.slice(0, 14), caption: caption.length > 110 ? caption.slice(0, 108) + "…" : caption, agent: e.agent };
+  }
+  return null;
+}
+
+function CaseNetwork({ c, events }: { c: CaseFull; events: Ev[] }) {
+  const [open, setOpen] = useState(true);
+  const live = c.busy || c.status === "investigating";
+  const focus = useMemo(() => (open ? focusFrom(c, events) : null), [events.length, open, c.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  const refreshKey = events.filter((e) => ["action_done", "remediation_evidence", "closed"].includes(e.type)).length;
+  return (
+    <section className="panel nxpanel casenet" data-tour="network">
+      <div className="panel-head">
+        <h2>Network</h2>
+        <span className="muted">{live ? "Live: the parts the agents are working on light up, with arrows, as they go." : `Everything within two steps of ${c.supplier_ids.join(", ")}. Drag, zoom, double-click to expand, or press Follow the money.`}</span>
+        <button className="linkbtn" style={{ marginLeft: "auto" }} onClick={() => setOpen(!open)}>{open ? "Collapse" : "Show network"}</button>
+      </div>
+      {open && <NetworkExplorer caseId={c.id} seeds={c.supplier_ids} compact focus={focus} refreshKey={refreshKey}
+        onOpenSupplier={(sid) => { location.href = `/?supplier=${sid}`; }} />}
+    </section>
   );
 }
