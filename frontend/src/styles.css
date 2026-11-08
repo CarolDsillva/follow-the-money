@@ -503,3 +503,5 @@ button.big { padding: 13px 20px; font-size: 14.5px; white-space: nowrap; }
 .fixlist button { justify-self: start; margin-top: 4px; font-size: 12.5px; padding: 5px 10px; }
 .rejected-acts { border: 1px dashed #fca5a5; background: #fff7f7; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13px; color: #334155; }
 .rejected-acts .rej { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid #fde2e2; }
+
+#case-tabs { scroll-margin-top: 84px; }

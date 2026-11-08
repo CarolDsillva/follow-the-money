@@ -111,6 +111,13 @@ function CaseInner({ id }: { id: string }) {
   const ex = c.state.exposure;
   const sev = ov?.overview.severity;
 
+  // jump to a tab from a button elsewhere on the page, and bring that section into view
+  const openTab = (t: Tab) => {
+    setTab(t); setFollow(false);
+    requestAnimationFrame(() => requestAnimationFrame(() =>
+      document.getElementById("case-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" })));
+  };
+
   return (
     <main className="case">
       <section className="casehead">
@@ -140,7 +147,7 @@ function CaseInner({ id }: { id: string }) {
         ))}
       </ol>
 
-      <Guide c={c} events={events} actions={ov?.actions ?? []} go={(t) => { setTab(t); setFollow(false); }} />
+      <Guide c={c} events={events} actions={ov?.actions ?? []} go={openTab} />
       {c.status === "new" && <StartBar c={c} onStarted={refresh} />}
       {c.status === "error" && (
         <div className="startbar errbar">
@@ -153,7 +160,7 @@ function CaseInner({ id }: { id: string }) {
       <RoleStrip />
       <CaseNetwork c={c} events={events} />
 
-      <div className="tabs" role="tablist">
+      <div className="tabs" role="tablist" id="case-tabs">
         {TABS.map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => { setTab(t); setFollow(false); }}>
             {t}{t === "Exposure & actions" && c.waiting_for === "approval" && !c.busy && <b className="dot" />}
@@ -162,7 +169,7 @@ function CaseInner({ id }: { id: string }) {
         <label className="follow"><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow the agents</label>
       </div>
 
-      {tab === "Overview" && <OverviewTab c={c} ov={ov} go={(t) => { setTab(t); setFollow(false); }} />}
+      {tab === "Overview" && <OverviewTab c={c} ov={ov} go={openTab} />}
       {tab === "Investigation" && <Investigation c={c} events={events} />}
       {tab === "Timeline" && <TimelineTab c={c} events={events} />}
       {tab === "Evidence & hypotheses" && <EvidenceTab c={c} events={events} />}
