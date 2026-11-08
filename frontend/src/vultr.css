@@ -39,3 +39,15 @@
   .vx-diagram { height: 460px; }
   .lp-nums { grid-template-columns: 1fr 1fr; }
 }
+
+/* closing call to action: same navy and light-blue beam as the hero */
+.lp-final { position: relative; margin: 18px; border-radius: 18px; overflow: hidden; isolation: isolate; text-align: left;
+  background: radial-gradient(120% 90% at 0% 0%, #071733 0%, #06122a 45%, #0a2350 100%); color: #ffffff; padding: 88px 64px; }
+.lp-final .fh-glow { z-index: -1; }
+.lf-inner { max-width: 560px; }
+.lp-final h2 { font-size: 44px; line-height: 1.06; font-weight: 600; letter-spacing: -0.035em; color: #ffffff; margin: 0 0 14px; max-width: none; }
+.lp-final p { color: rgba(255, 255, 255, 0.8); font-size: 16.5px; line-height: 1.55; margin: 0; }
+.lp-final .lp-kicker { margin-bottom: 12px; }
+.fh-signin.ghosted { background: transparent; color: #ffffff !important; border: 1px solid rgba(255, 255, 255, 0.45); padding: 17px 20px; border-radius: 2px; gap: 40px; }
+.fh-signin.ghosted:hover { background: rgba(255, 255, 255, 0.08); }
+.lp-foot { color: #475569; }

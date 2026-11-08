@@ -170,10 +170,15 @@ export function Landing() {
       </section>
 
       <section className="lp-final">
-        <h2>See it work on a real case in 3 minutes.</h2>
-        <div className="lp-cta center">
-          <button className="lp-btn big light" disabled={!!busy} onClick={() => run("INC-0412")}>{busy ? "Starting…" : "Run the live demo →"}</button>
-          <a className="lp-btn big outline" href="/?view=incidents">Browse incidents</a>
+        <div className="fh-glow" aria-hidden="true" />
+        <div className="lf-inner">
+          <p className="lp-kicker light">Live demo</p>
+          <h2>See it work on a real case in 3 minutes.</h2>
+          <p>Eight agents, one suspicious payment run, and you as the Finance Director. A short tour shows you around.</p>
+          <div className="fh-cta">
+            <button className="fh-btn" disabled={!!busy} onClick={() => run("INC-0412")}>{busy ? "Starting the agents…" : "Run the live demo"} <span>→</span></button>
+            <a className="fh-signin ghosted" href="/?view=incidents">Browse incidents <span>→</span></a>
+          </div>
         </div>
       </section>
 
