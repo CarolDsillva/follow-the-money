@@ -10,6 +10,17 @@ Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounti
 | [Incidents (the app)](https://followthemoney.137-220-32-178.sslip.io/?view=incidents) | The inbox: severity, pattern, owner and every investigation run |
 | [API docs](https://followthemoney.137-220-32-178.sslip.io/api/docs) | Every endpoint, including `/api/network` (the money map) and `/api/cases/{id}/export` |
 
+![The live money map: every supplier due in the next payment run, incidents in red](docs/screenshots/money-map.png)
+
+| | |
+|---|---|
+| ![Incident page with the live network](docs/screenshots/incident.png) | ![The network lights up what each agent is working on](docs/screenshots/live-network.png) |
+| **Incident page**: stage tracker, exposure, and the network on top | **Live investigation**: the records the current agent touches light up |
+| ![Closure checks](docs/screenshots/verification.png) | ![Decision memo](docs/screenshots/decision-memo.png) |
+| **Verified, not clicked**: closure checks retested in code | **Decision memo**: one printable page for the Finance Director |
+| ![Supplier page](docs/screenshots/supplier.png) | ![Scan your own data](docs/screenshots/scan-your-data.png) |
+| **Supplier page**: identifiers, changes and the supplier's network | **Scan your own data**: CSV in, patterns and network out |
+
 > All data in the demo is synthetic. Northstar Manufacturing Group, its people, suppliers, bank tokens and records are fictional. Follow the Money cannot pay anyone or send any message.
 
 ## The problem
