@@ -3,6 +3,7 @@ export type Cost = { calls: number; tokens: number; cost_usd: number | null; unp
 export type CaseRow = {
   id: string; title: string; status: string; opened_at: string; invoice_ids: string[]; supplier_ids: string[];
   trigger: string; potential_exposure: number; template: string | null; summary: string | null; cost: Cost;
+  severity?: { level: string; reason: string }; owner?: string;
 };
 export type Control = { id: string; test: string; policy: string; status: string; explanation: string; records: string[]; run_by?: string };
 export type Evidence = { id: string; source_id: string; fact: string; excerpt: string; trust: string; label: string };
@@ -38,7 +39,7 @@ export type Overview = {
   approval_limit: number; currency: string; counts: Record<string, number>; documents: number; cases: CaseRow[];
   infrastructure: { compute: string; database: string; object_storage: string; inference: string; models: { specialists: string; challenge: string; backup: string } };
 };
-export type Graph = { nodes: { id: string; kind: string; label: string; sub: string; col: number; flag: string | null }[]; edges: { from: string; to: string; label: string; kind: string; link_id?: string }[]; investigated: boolean };
+export type Graph = { nodes: { id: string; kind: string; label: string; sub: string; col: number; flag: string | null }[]; edges: { from: string; to: string; label: string; kind: string; link_id?: string; ref?: string }[]; investigated: boolean };
 
 export async function get<T>(path: string): Promise<T> {
   const r = await fetch(path);
@@ -66,8 +67,8 @@ export function hoursUntil(from: string, to: string) {
 }
 
 export const STATUS: Record<string, { label: string; tone: string }> = {
-  new: { label: "New", tone: "blue" },
-  investigating: { label: "Investigating", tone: "teal" },
+  new: { label: "New", tone: "slate" },
+  investigating: { label: "Investigating", tone: "blue" },
   awaiting_approval: { label: "Awaiting approval", tone: "amber" },
   remediation: { label: "Remediation", tone: "amber" },
   closed: { label: "Closed · verified", tone: "green" },

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from app import rules
 from app.llm import Gateway, LLMError, models_for, tool
-from app.store import Store
+from app.store import Store, now
 
 INSTRUCTION_PATTERNS = [
     r"automated assistant", r"\bAI\b.{0,30}(assistant|agent)", r"ignore (all|any|previous)", r"no callback is needed",
@@ -19,12 +19,18 @@ INSTRUCTION_PATTERNS = [
 ]
 
 ACTION_CATALOGUE = {
-    "review_hold": {"label": "Place invoices on review hold before the payment run", "targets": "invoice", "owner": "EMP-03", "approver_role": "Finance Director"},
-    "supplier_callback": {"label": "Verify bank details by calling the supplier's phone number of record", "targets": "supplier", "owner": "EMP-05", "approver_role": "Finance Director"},
-    "receiving_confirmation": {"label": "Ask the warehouse to confirm what was received", "targets": "purchase_order", "owner": "EMP-08", "approver_role": "Finance Director"},
-    "due_diligence": {"label": "Complete new-supplier due diligence", "targets": "supplier", "owner": "EMP-05", "approver_role": "Finance Director"},
-    "escalate_to_audit": {"label": "Escalate the approval pattern to Internal Audit", "targets": "purchase_request", "owner": "EMP-06", "approver_role": "Finance Director"},
-    "release_for_payment": {"label": "Release invoices to the payment run unchanged (no control failure)", "targets": "invoice", "owner": "EMP-03", "approver_role": "Finance Director"},
+    "review_hold": {"label": "Place invoices on review hold before the payment run", "targets": "invoice", "owner": "EMP-03", "approver_role": "Finance Director",
+                    "outcome": "No affected invoice pays in the run until the review ends", "due": "run", "check": "containment", "executes": True},
+    "supplier_callback": {"label": "Verify bank details by calling the supplier's phone number of record", "targets": "supplier", "owner": "EMP-05", "approver_role": "Finance Director",
+                          "outcome": "Bank change confirmed or reverted through a channel the email can't control", "due": "run", "check": "bank_change_cooling_off"},
+    "receiving_confirmation": {"label": "Ask the warehouse to confirm what was received", "targets": "purchase_order", "owner": "EMP-08", "approver_role": "Finance Director",
+                               "outcome": "Billed quantities match received quantities, or the invoice is disputed", "due": "run", "check": "three_way_match"},
+    "due_diligence": {"label": "Complete new-supplier due diligence", "targets": "supplier", "owner": "EMP-05", "approver_role": "Finance Director",
+                      "outcome": "Supplier cleared, or blocked from payment", "due": "+2d", "check": "new_supplier_due_diligence"},
+    "escalate_to_audit": {"label": "Escalate the approval pattern to Internal Audit", "targets": "purchase_request", "owner": "EMP-06", "approver_role": "Finance Director",
+                          "outcome": "Internal Audit acknowledges and opens a review of the approval pattern", "due": "+2d", "check": "audit_escalation"},
+    "release_for_payment": {"label": "Release invoices to the payment run unchanged (no control failure)", "targets": "invoice", "owner": "EMP-03", "approver_role": "Finance Director",
+                            "outcome": "Invoices pay on schedule; the exemption is recorded", "due": "run", "check": "open_exceptions", "executes": True},
 }
 
 COMMON_RULES = """You work inside ControlRoom, a financial control incident-response system for Northstar Manufacturing Group.
@@ -216,7 +222,27 @@ T = {
 def run_agent(ctx: Ctx, agent: str, role: str, system: str, user: str, tool_names: list[str], submit: dict,
               tools: Tools, max_steps: int = 10) -> dict:
     """Tool loop. Every tool call and model call is written to the case's event log."""
-    ctx.emit(agent, "agent_started", f"{agent} started", {"model": models_for(role)[0]})
+    import hashlib
+    import time
+    import uuid
+    run_id = uuid.uuid4().hex[:8]
+    prompt_version = hashlib.sha256((COMMON_RULES + system).encode()).hexdigest()[:10]
+    started = time.monotonic()
+    ctx.emit(agent, "agent_started", f"{agent} started", {"model": models_for(role)[0], "run_id": run_id,
+             "prompt_version": prompt_version, "tools": tool_names, "input": user[:2500]})
+    try:
+        out = _agent_loop(ctx, agent, role, system, user, tool_names, submit, tools, max_steps)
+    except Exception as e:
+        ctx.emit(agent, "agent_failed", f"{agent} failed: {type(e).__name__}: {str(e)[:200]}",
+                 {"run_id": run_id, "seconds": round(time.monotonic() - started, 1)})
+        raise
+    ctx.emit(agent, "agent_finished", f"{agent} finished in {time.monotonic() - started:.0f} s",
+             {"run_id": run_id, "seconds": round(time.monotonic() - started, 1), "output": json.dumps(out, default=str)[:3000]})
+    return out
+
+
+def _agent_loop(ctx: Ctx, agent: str, role: str, system: str, user: str, tool_names: list[str], submit: dict,
+                tools: Tools, max_steps: int) -> dict:
     messages = [{"role": "system", "content": COMMON_RULES + "\n\n" + system}, {"role": "user", "content": user}]
     available = [T[n] for n in tool_names] + [submit]
     submit_name = submit["function"]["name"]
@@ -277,6 +303,12 @@ def evidence_agent(ctx: Ctx) -> list[dict]:
     out = run_agent(ctx, "Evidence Agent", "evidence",
                     "You are the Evidence Agent. You collect source-linked facts. You never invent evidence.",
                     user, ["get_chain", "get_record", "list_documents", "read_document"], submit, tools, max_steps=16)
+    if not objs(out.get("items"), "fact"):
+        ctx.emit("Evidence Agent", "agent_retry", "Submitted an empty ledger. Running once more with a shorter brief.", {})
+        out = run_agent(ctx, "Evidence Agent", "evidence",
+                        "You are the Evidence Agent. You collect source-linked facts. You never invent evidence.",
+                        user + "\nYour previous attempt submitted nothing. Call get_chain for each invoice, then submit at least 8 items.",
+                        ["get_chain", "read_document"], submit, Tools(ctx), max_steps=8)
     accepted, rejected = [], []
     docs = {d["id"]: d for d in ctx.store.list_documents(ctx.case_id)}
     for item in objs(out.get("items"), "fact"):
@@ -300,6 +332,8 @@ def evidence_agent(ctx: Ctx) -> list[dict]:
                          "trust": trust, "label": "Unverified claim" if claim else "Confirmed source"})
     for r in rejected:
         ctx.emit("Evidence validator", "evidence_rejected", f"Rejected: {r['reason']}", r)
+    if not accepted:
+        raise LLMError(f"Evidence Agent produced no verifiable evidence ({len(rejected)} items rejected). The investigation is blocked; retry this step.")
     ctx.store.merge_state(ctx.case_id, {"evidence": accepted, "evidence_rejected": rejected})
     ctx.emit("Evidence Agent", "evidence", f"{len(accepted)} evidence items accepted, {len(rejected)} rejected by the validator",
              {"accepted": len(accepted), "rejected": len(rejected)})
@@ -494,15 +528,29 @@ def resolution_agent(ctx: Ctx) -> list[dict]:
         spec = ACTION_CATALOGUE.get(a.get("kind"))
         if not spec:
             continue
-        targets = [t for t in strs(a.get("target_ids")) if world.kind(t) == spec["targets"]]
+        scope = set(c["invoice_ids"]) | set(c["supplier_ids"])
+        for i in c["invoice_ids"]:
+            ch = world.chain(i)
+            scope |= {ch["po"]["id"], ch["request"]["id"]}
+        proposed = strs(a.get("target_ids"))
+        targets = [t for t in proposed if world.kind(t) == spec["targets"] and t in scope]
+        outside = [t for t in proposed if t not in scope]
+        if outside:
+            ctx.emit("Action validator", "evidence_rejected", f"Removed targets outside this incident from {a.get('kind')}: {outside}", a)
         if not targets:
             ctx.emit("Action validator", "evidence_rejected", f"Dropped {a.get('kind')}: no valid {spec['targets']} targets in {a.get('target_ids')}", a)
             continue
         owner = world.get(spec["owner"])
+        if spec["due"] == "run":
+            due = world.run["scheduled_for"]
+        else:
+            import datetime as _dt
+            due = (_dt.datetime.fromisoformat(world.meta["world_now"].replace("Z", "+00:00")) + _dt.timedelta(days=2)).isoformat()
         actions.append({"id": f"ACT-{len(actions) + 1}", "kind": a["kind"], "label": spec["label"], "target_ids": targets,
                         "owner_id": owner["id"], "owner": f"{owner['name']}, {owner['role']}", "rationale": a.get("rationale", ""),
                         "cites": strs(a.get("cites")), "requires_approval": True, "approver_role": spec["approver_role"],
-                        "decision": None, "status": "proposed"})
+                        "expected_outcome": spec["outcome"], "due": due, "verified_by_check": spec["check"],
+                        "decision": None, "status": "proposed", "proposed_at": now()})
     ctx.store.merge_state(ctx.case_id, {"actions": actions}, status="awaiting_approval")
     ctx.emit("Resolution Agent", "actions", f"{len(actions)} actions proposed, all waiting for human approval",
              {"actions": [(x["id"], x["kind"], x["target_ids"]) for x in actions]})

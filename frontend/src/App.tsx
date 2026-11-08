@@ -1,16 +1,17 @@
 import { useEffect, useState } from "react";
 import { costText, get, hoursUntil, post, STATUS, usd, type Overview } from "./api";
 import { CaseView } from "./Case";
+import { PersonaProvider, PersonaSwitch } from "./ctx";
 
 export function App() {
   const params = new URLSearchParams(location.search);
   const caseId = params.get("case");
   return (
-    <div className="shell">
+    <PersonaProvider><div className="shell">
       <TopBar />
       <div className="synthetic">Synthetic demonstration data. Northstar Manufacturing Group, its people, suppliers and records are fictional. No real payment or message can be sent.</div>
       {caseId ? <CaseView id={caseId} /> : <Inbox />}
-    </div>
+    </div></PersonaProvider>
   );
 }
 
@@ -27,6 +28,7 @@ function TopBar() {
         <a href="/#how">How it works</a>
         <a href="/api/docs" target="_blank" rel="noreferrer">API</a>
       </nav>
+      <PersonaSwitch />
     </header>
   );
 }
@@ -40,6 +42,8 @@ function Inbox() {
   const [ov, setOv] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     const load = () => get<Overview>("/api/overview").then(setOv).catch((e) => setError(e.message));
@@ -64,7 +68,11 @@ function Inbox() {
   const run = ov.payment_run;
   const hours = hoursUntil(ov.world_now, run.scheduled_for);
   const templates = ov.cases.filter((c) => c.id === c.template).sort((a, b) => a.id.localeCompare(b.id));
-  const runs = ov.cases.filter((c) => c.id !== c.template);
+  const runs = ov.cases.filter((c) => c.id !== c.template)
+    .filter((c) => statusFilter === "all" || c.status === statusFilter)
+    .filter((c) => !q || `${c.id} ${c.summary ?? ""} ${c.title}`.toLowerCase().includes(q.toLowerCase()));
+  const latest = (t: string) => ov.cases.find((c) => c.template === t && c.id !== t);
+  const inIncidents = templates.reduce((a, c) => a + c.potential_exposure, 0);
 
   return (
     <main className="page">
@@ -82,7 +90,11 @@ function Inbox() {
             <div><strong>{usd(run.total)}</strong><span>{run.payments} payments</span></div>
             <div><strong className="amber">{hours} h</strong><span>until release</span></div>
           </div>
-          <p className="fine">World clock {fmt(ov.world_now)}. The payment-run scan is deterministic code: near-limit invoices from the same or linked suppliers open an incident.</p>
+          <div className="split">
+            <div style={{ width: `${(100 * inIncidents) / run.total}%` }} className="split-a" />
+          </div>
+          <p className="fine"><b className="amber">{usd(inIncidents)}</b> of this run is in open incidents; {usd(run.total - inIncidents)} is unaffected.</p>
+          <p className="fine">World clock {fmt(ov.world_now)}. Scan rule (code): an invoice at 90 to 100% of the {usd(ov.approval_limit)} approval limit (POL-01), grouped with others from the same or a linked supplier in the same run.</p>
         </div>
       </section>
 
@@ -91,41 +103,55 @@ function Inbox() {
       <section className="panel">
         <div className="panel-head">
           <h2>Incidents opened by the scan</h2>
-          <span className="muted">Each run gets its own copy of the ERP, so you can run an incident from the start yourself.</span>
+          <span className="muted">"Start investigation" runs the agents on an isolated snapshot of the ERP and documents. Holds and fixes made in a run stay in that run, so anyone can start again from the original state.</span>
         </div>
         <table className="table">
-          <thead><tr><th>Incident</th><th>Trigger</th><th className="num">Potential exposure</th><th>Status</th><th /></tr></thead>
+          <thead><tr><th>Incident</th><th>Pattern and reason</th><th className="num">Potential exposure</th><th>Severity</th><th>Owner</th><th>Latest run</th><th /></tr></thead>
           <tbody>
-            {templates.map((c) => (
-              <tr key={c.id}>
-                <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a><div className="sub">{c.title}</div></td>
-                <td className="trig">{c.trigger}</td>
-                <td className="num money">{usd(c.potential_exposure)}</td>
-                <td><Pill status={c.status} /></td>
-                <td className="right">
-                  <button className="primary" disabled={busy !== null} onClick={() => runFresh(c.id)}>
-                    {busy === c.id ? "Starting" : "Investigate a fresh copy"}
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {templates.map((c) => {
+              const l = latest(c.id);
+              return (
+                <tr key={c.id}>
+                  <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a><div className="sub">{c.title}</div></td>
+                  <td className="trig"><span className={`pattern ${c.supplier_ids.length > 1 ? "multi" : "single"}`}>{c.supplier_ids.length > 1 ? `Multi-supplier pattern (${c.supplier_ids.length} linked)` : "Single-supplier pattern"}</span><br />{c.trigger}</td>
+                  <td className="num money">{usd(c.potential_exposure)}<div className="sub">potential, not a loss</div></td>
+                  <td>{c.severity && <span className={`sev sev-${c.severity.level}`} title={c.severity.reason}>{c.severity.level}</span>}</td>
+                  <td className="sub">{c.owner}</td>
+                  <td>{l ? <><a href={`/?case=${l.id}`} className="caseid small">{l.id}</a><br /><Pill status={l.status} /></> : <span className="muted">Not investigated</span>}</td>
+                  <td className="right">
+                    <button className="primary" disabled={busy !== null} onClick={() => runFresh(c.id)}>
+                      {busy === c.id ? "Starting" : "Start investigation"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+        <p className="fine">Statuses: <b>New</b> opened by the scan · <b>Investigating</b> agents running · <b>Awaiting approval</b> a person must decide · <b>Remediation</b> teams fixing, verification pending · <b>Closed · verified</b> all checks passed · <b>Closed · override</b> closed by a named person with a reason.</p>
       </section>
 
       {runs.length > 0 && (
         <section className="panel">
-          <div className="panel-head"><h2>Investigation runs</h2><span className="muted">Every run, with its model cost.</span></div>
+          <div className="panel-head"><h2>Investigation runs</h2><span className="muted">Every run, with its model cost.</span>
+            <div className="filters">
+              <input placeholder="Search runs" value={q} onChange={(e) => setQ(e.target.value)} />
+              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="all">All statuses</option>
+                {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div></div>
           <table className="table">
-            <thead><tr><th>Run</th><th>Headline</th><th>Status</th><th className="num">Model cost</th><th>Opened</th></tr></thead>
+            <thead><tr><th>Run</th><th>Headline</th><th>Severity</th><th>Status</th><th className="num">Model cost</th><th>Age</th></tr></thead>
             <tbody>
               {runs.slice(0, 15).map((c) => (
                 <tr key={c.id}>
                   <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a></td>
                   <td className="trig">{c.summary ?? c.title}</td>
+                  <td>{c.severity && <span className={`sev sev-${c.severity.level}`} title={c.severity.reason}>{c.severity.level}</span>}</td>
                   <td><Pill status={c.status} /></td>
                   <td className="num mono">{costText(c.cost)}</td>
-                  <td className="muted">{new Date(c.opened_at).toLocaleString()}</td>
+                  <td className="muted" title={new Date(c.opened_at).toLocaleString()}>{age(c.opened_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -163,4 +189,9 @@ function Inbox() {
 
 export function fmt(iso: string) {
   return new Date(iso).toLocaleString("en-US", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+}
+
+function age(iso: string) {
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`;
 }

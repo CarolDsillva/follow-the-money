@@ -48,8 +48,8 @@ for a in c["state"].get("actions", []):
     print(" ACT", a["kind"], a["target_ids"])
 print(" controls", [(x["test"], x["status"]) for x in c["state"]["controls"]])
 if "--approve" in sys.argv:
-    call("POST", f"/cases/{cid}/decisions", {"by": "Test operator", "decisions": {a["id"]: {"decision": "approved", "reason": "live test"} for a in c["state"]["actions"]}})
+    call("POST", f"/cases/{cid}/decisions", {"persona": "finance_director", "decisions": {a["id"]: {"decision": "approved", "reason": "live test"} for a in c["state"]["actions"]}})
     follow(lambda c: c["waiting_for"] == "remediation" and not c["busy"])
-    call("POST", f"/cases/{cid}/close", {"by": "Test operator", "override_reason": ""})
+    call("POST", f"/cases/{cid}/close", {"persona": "finance_director", "override_reason": ""})
     c = follow(lambda c: not c["busy"] and (c["status"].startswith("closed") or c["state"].get("verification", {}).get("last_refusal")))
     print("final", c["status"], c["cost"], round(time.time() - t0), "s")

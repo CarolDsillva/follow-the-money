@@ -97,3 +97,11 @@ def test_closure_refused_until_remediated(data):
 def test_benign_case_may_close_when_exempt(data):
     case = {"invoice_ids": B, "controls": [{"test": "split_purchase", "status": "exempt"}], "actions": []}
     assert rules.may_close(rules.closure_checks(world(data), case))
+
+
+def test_open_approved_task_blocks_closure(data):
+    task = {"kind": "receiving_confirmation", "decision": "approved", "status": "task_open", "label": "Confirm receipts", "owner": "Ana Petrov"}
+    case = {"invoice_ids": B, "controls": [{"test": "split_purchase", "status": "exempt"}], "actions": [task]}
+    checks = rules.closure_checks(world(data), case)
+    assert not rules.may_close(checks) and any(c["test"] == "approved_tasks" for c in checks)
+    assert rules.may_close(rules.closure_checks(world(data), {**case, "actions": [{**task, "status": "done"}]}))

@@ -99,12 +99,18 @@ class Engine:
                             self.store.update_record(state["case_id"], p["id"], {"status": "on_hold", "hold_reason": f"{state['case_id']} review"})
                     self.store.update_record(state["case_id"], inv, {"status": "on_review_hold"})
                 a["status"] = "done"
+                a["executed_at"] = now()
+                held = [p["id"] for inv in a["target_ids"] for p in ctx.world.find("payment", invoice_id=inv)]
+                a["execution"] = f"Simulated in the ERP simulator: {', '.join(held)} set to on hold; invoices set to review hold. No bank or ERP outside the demo was touched."
                 ctx.emit("Action executor", "action_done", f"Review hold placed on {', '.join(a['target_ids'])}. Payments removed from {ctx.world.run['id']}.", a)
             elif a["kind"] == "release_for_payment":
                 a["status"] = "done"
+                a["executed_at"] = now()
+                a["execution"] = "Simulated: invoices left scheduled in the payment run. ControlRoom never pays anyone."
                 ctx.emit("Action executor", "action_done", f"{', '.join(a['target_ids'])} left in {ctx.world.run['id']} unchanged.", a)
             else:
                 a["status"] = "task_open"
+                a["task_opened_at"] = now()
                 ctx.emit("Action executor", "task_created", f"Task for {a['owner']}: {a['label']} ({', '.join(a['target_ids'])})", a)
         self.store.merge_state(state["case_id"], {"actions": actions}, status="remediation")
         return {}
@@ -261,15 +267,34 @@ class Engine:
             self.store.update_record(case_id, rid, changes)
         st = self.store.case(case_id)["state"]
         docs = sorted(set(st.get("remediation_docs", [])) | {rem["document"]["id"]})
-        self.store.merge_state(case_id, {"remediation_docs": docs})
+        completes = {"callback": ("supplier_callback", "due_diligence"), "receiving": ("receiving_confirmation",)}[kind]
+        actions = st.get("actions", [])
+        for a in actions:
+            if a["kind"] in completes and a.get("decision") == "approved":
+                a["status"] = "done"
+                a["completed_by"] = by
+                a["completed_at"] = now()
+                a["evidence_doc"] = rem["document"]["id"]
+        self.store.merge_state(case_id, {"remediation_docs": docs, "actions": actions})
         self.store.event(case_id, by, "remediation_evidence", f"{rem['label']}: {rem['document']['title']} uploaded to Object Storage",
                          {"document_id": rem["document"]["id"], "updates": [[r, i] for r, i, _ in rem["updates"]]})
+
+    def complete_task(self, case_id: str, action_id: str, by: str, note: str):
+        st = self.store.case(case_id)["state"]
+        actions = st.get("actions", [])
+        a = next((x for x in actions if x["id"] == action_id), None)
+        if not a or a.get("decision") != "approved" or a.get("status") != "task_open":
+            raise KeyError(action_id)
+        a.update(status="done", completed_by=by, completed_at=now(), completion_note=note)
+        self.store.merge_state(case_id, {"actions": actions})
+        self.store.event(case_id, by, "task_done", f"Completed: {a['label']} ({', '.join(a['target_ids'])}). Note: {note}", {"action_id": action_id})
 
     def acknowledge_audit(self, case_id: str, by: str):
         st = self.store.case(case_id)["state"]
         for a in st.get("actions", []):
             if a["kind"] == "escalate_to_audit" and a.get("decision") == "approved":
                 a["acknowledged_by"] = by
+                a["completed_at"] = now()
                 a["status"] = "done"
         self.store.merge_state(case_id, {"actions": st.get("actions", [])})
         self.store.event(case_id, by, "audit_acknowledged", "Internal Audit acknowledged the approval-pattern finding and opened a review.", {})

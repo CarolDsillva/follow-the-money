@@ -1,20 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type Ev, type Graph } from "./api";
 import { fmt, Pill } from "./App";
+import { Cite, DrawerProvider, usePersona } from "./ctx";
 import { RelationshipMap } from "./Map";
 
 const AGENTS = [
-  { name: "Incident Commander", job: "Plan and brief" },
-  { name: "Evidence Agent", job: "Collect source facts" },
-  { name: "Relationship Agent", job: "Link entities" },
-  { name: "Control Agent", job: "Run policy tests" },
-  { name: "Exposure engine", job: "Compute exposure (code)" },
-  { name: "Challenge Agent", job: "Argue the other side" },
-  { name: "Resolution Agent", job: "Propose actions" },
-  { name: "Verification Agent", job: "Retest controls" },
+  { name: "Incident Commander", job: "Plan and brief", after: "the incident to open" },
+  { name: "Evidence Agent", job: "Collect source facts", after: "the Commander's plan" },
+  { name: "Relationship Agent", job: "Link entities", after: "the Evidence Agent" },
+  { name: "Control Agent", job: "Run policy tests", after: "the Evidence Agent" },
+  { name: "Exposure engine", job: "Compute exposure (code)", after: "the Relationship and Control Agents" },
+  { name: "Challenge Agent", job: "Argue the other side", after: "exposure to be computed" },
+  { name: "Resolution Agent", job: "Propose actions", after: "the Commander's briefing" },
+  { name: "Verification Agent", job: "Retest controls", after: "approval and remediation evidence" },
 ];
 
-const TABS = ["Investigation", "Relationship map", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
+const TABS = ["Overview", "Investigation", "Timeline", "Relationship map", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
 type Tab = (typeof TABS)[number];
 
 const STEPS = [
@@ -25,6 +26,23 @@ const STEPS = [
   { key: "remediate", label: "Remediated" },
   { key: "verify", label: "Verified & closed" },
 ];
+
+type Stage = { stage: string; state: string; by?: string; at?: string; note?: string | null };
+type ActionView = NonNullable<CaseFull["state"]["actions"]>[number] & { lifecycle: Stage[]; expected_outcome?: string; due?: string };
+type Criteria = Control[];
+type OverviewData = {
+  criteria?: Criteria;
+  overview: {
+    what_happened: string; why_raised: string; next_step: string; owner: string; exceptions_open: string[];
+    how_much: { potential_exposure: number; invoice_count: number; unsupported_by_receipts: number; to_unverified_changed_account: number;
+      pending_payment: number | null; on_hold: number | null; already_paid: number | null; confirmed_loss: null; label: string };
+    evidence: { statement: string; label: string; cites: string[] }[];
+    competing: { id: string; kind: string; status: string; statement: string }[];
+    unknowns: string[]; severity: { level: string; reason: string };
+  };
+  actions: ActionView[];
+};
+type TL = { at: string; kind: string; text: string; source_id: string; provenance: string; flag: string | null };
 
 function stepIndex(c: CaseFull, events: Ev[]): number {
   if (c.status.startsWith("closed")) return 6;
@@ -39,23 +57,28 @@ function stepIndex(c: CaseFull, events: Ev[]): number {
 
 const TAB_FOR: Record<string, Tab> = {
   plan: "Investigation", evidence: "Evidence & hypotheses", links: "Relationship map", controls: "Investigation",
-  exposure: "Exposure & actions", hypotheses: "Evidence & hypotheses", briefing: "Evidence & hypotheses", actions: "Exposure & actions",
-  action_done: "Verification & audit", close_refused: "Verification & audit", verification: "Verification & audit", closed: "Verification & audit",
+  exposure: "Exposure & actions", hypotheses: "Evidence & hypotheses", briefing: "Overview", actions: "Exposure & actions",
+  action_done: "Verification & audit", close_refused: "Verification & audit", verification: "Verification & audit", closed: "Overview",
 };
 
 export function CaseView({ id }: { id: string }) {
+  return <DrawerProvider caseId={id}><CaseInner id={id} /></DrawerProvider>;
+}
+
+function CaseInner({ id }: { id: string }) {
   const [c, setC] = useState<CaseFull | null>(null);
+  const [ov, setOv] = useState<OverviewData | null>(null);
   const [events, setEvents] = useState<Ev[]>([]);
   const [graph, setGraph] = useState<Graph | null>(null);
-  const [tab, setTab] = useState<Tab>("Investigation");
+  const [tab, setTab] = useState<Tab>("Overview");
   const [follow, setFollow] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const last = useRef(0);
   const refreshTimer = useRef<number | null>(null);
 
   const refresh = () =>
-    Promise.all([get<CaseFull>(`/api/cases/${id}`), get<Graph>(`/api/cases/${id}/graph`)])
-      .then(([cc, g]) => { setC(cc); setGraph(g); })
+    Promise.all([get<CaseFull>(`/api/cases/${id}`), get<Graph>(`/api/cases/${id}/graph`), get<OverviewData>(`/api/cases/${id}/overview`)])
+      .then(([cc, g, o]) => { setC(cc); setGraph(g); setOv(o); setError(null); })
       .catch((e) => setError(e.message));
 
   useEffect(() => {
@@ -70,6 +93,8 @@ export function CaseView({ id }: { id: string }) {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       refreshTimer.current = window.setTimeout(refresh, 400);
     };
+    es.onerror = () => setError("Live updates paused. Reconnecting…");
+    es.onopen = () => setError(null);
     const t = setInterval(refresh, 6000);
     return () => { es.close(); clearInterval(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,19 +104,22 @@ export function CaseView({ id }: { id: string }) {
   const step = stepIndex(c, events);
   const hours = hoursUntil(c.world_now, c.payment_run.scheduled_for);
   const ex = c.state.exposure;
+  const sev = ov?.overview.severity;
 
   return (
     <main className="case">
       <section className="casehead">
         <div className="casehead-main">
           <a href="/" className="back">← Incidents</a>
-          <div className="titleline"><h1>{c.id}</h1><Pill status={c.status} />{c.busy && <span className="live"><i />Agents working</span>}</div>
+          <div className="titleline"><h1>{c.id}</h1><Pill status={c.status} />
+            {sev && <span className={`sev sev-${sev.level}`} title={sev.reason}>{sev.level}</span>}
+            {c.busy && <span className="live"><i />{runningAgent(events) ?? "Working"}</span>}</div>
           <p className="casetitle">{c.state.briefing?.headline ?? c.title}</p>
-          <p className="fine">{c.trigger}</p>
+          <p className="fine">{c.trigger} · Owner: Elena Brandt, AP Operations Lead · <a href={`/api/cases/${c.id}/export`}>Export incident record</a></p>
         </div>
         <div className="kpis">
           <div><span>Potential exposure</span><strong className="money">{usd(ex?.total_in_run ?? c.potential_exposure)}</strong>
-            {ex && <em>{usd(ex.unsupported_by_receipts)} not backed by receipts</em>}</div>
+            <em>{ex ? `${usd(ex.unsupported_by_receipts)} not backed by receipts` : "not a confirmed loss"}</em></div>
           <div><span>{c.payment_run.id}</span><strong className="amber">{hours} h</strong><em>until release</em></div>
           <div><span>Model cost</span><strong className="mono">{costText(c.cost)}</strong><em>{c.cost.calls} calls · {c.cost.tokens.toLocaleString()} tokens</em></div>
         </div>
@@ -106,7 +134,7 @@ export function CaseView({ id }: { id: string }) {
       {c.status === "new" && <StartBar c={c} onStarted={refresh} />}
       {c.status === "error" && (
         <div className="startbar errbar">
-          <p>A step failed: {[...events].reverse().find((e) => e.type === "error")?.text}. Completed agent steps are saved in Postgres.</p>
+          <p>A step failed: {[...events].reverse().find((e) => e.type === "error")?.text}. Completed agent steps are saved in Postgres, so nothing is lost.</p>
           <button className="primary" onClick={() => post(`/api/cases/${c.id}/retry`).then(refresh).catch((e) => setError(e.message))}>Retry from checkpoint</button>
         </div>
       )}
@@ -121,11 +149,13 @@ export function CaseView({ id }: { id: string }) {
         <label className="follow"><input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow the agents</label>
       </div>
 
+      {tab === "Overview" && <OverviewTab c={c} ov={ov} go={(t) => { setTab(t); setFollow(false); }} />}
       {tab === "Investigation" && <Investigation c={c} events={events} />}
-      {tab === "Relationship map" && graph && <RelationshipMap graph={graph} caseId={c.id} />}
+      {tab === "Timeline" && <TimelineTab c={c} events={events} />}
+      {tab === "Relationship map" && graph && <RelationshipMap graph={graph} />}
       {tab === "Evidence & hypotheses" && <EvidenceTab c={c} events={events} />}
-      {tab === "Exposure & actions" && <ExposureTab c={c} onDone={refresh} />}
-      {tab === "Verification & audit" && <VerifyTab c={c} events={events} onDone={refresh} />}
+      {tab === "Exposure & actions" && <ExposureTab c={c} actions={ov?.actions ?? []} onDone={refresh} />}
+      {tab === "Verification & audit" && <VerifyTab c={c} events={events} actions={ov?.actions ?? []} criteria={ov?.criteria ?? []} onDone={refresh} />}
     </main>
   );
 }
@@ -151,48 +181,128 @@ function StartBar({ c, onStarted }: { c: CaseFull; onStarted: () => void }) {
   );
 }
 
+// ------------------------------------------------------------------ Overview
+
+function OverviewTab({ c, ov, go }: { c: CaseFull; ov: OverviewData | null; go: (t: Tab) => void }) {
+  if (!ov) return <p className="muted">Loading overview</p>;
+  const o = ov.overview;
+  const h = o.how_much;
+  return (
+    <div className="overview">
+      <section className="panel q q-wide">
+        <p className="qlabel">What happened</p>
+        <p className="qbig">{o.what_happened}</p>
+      </section>
+      <section className="panel q">
+        <p className="qlabel">Why it was raised</p>
+        <p>{o.why_raised}</p>
+        {o.exceptions_open.length > 0 && <p className="fine">Open control exceptions: {o.exceptions_open.map((x) => <Cite key={x} id={`CTL-${x}`} />)}</p>}
+      </section>
+      <section className="panel q">
+        <p className="qlabel">How much money could be affected</p>
+        <p className="qbig money">{usd(h.potential_exposure)} <span className="fine">{h.label.toLowerCase()}</span></p>
+        <dl className="mini">
+          <div><dt>Invoices</dt><dd>{h.invoice_count}</dd></div>
+          <div><dt>Pending payment</dt><dd>{usd(h.pending_payment)}</dd></div>
+          <div><dt>On hold</dt><dd>{usd(h.on_hold)}</dd></div>
+          <div><dt>Already paid</dt><dd>{usd(h.already_paid)}</dd></div>
+          <div><dt>Confirmed loss</dt><dd>None established</dd></div>
+        </dl>
+        <button className="linkbtn" onClick={() => go("Exposure & actions")}>See the calculation →</button>
+      </section>
+      <section className="panel q">
+        <p className="qlabel">What the evidence shows</p>
+        {o.evidence.length === 0 ? <p className="muted">No findings yet.</p> : (
+          <ul className="findings">
+            {o.evidence.map((f, i) => (
+              <li key={i}><span className={`lab lab-${f.label}`}>{f.label}</span>{f.statement} <span className="cites">{f.cites.map((x) => <Cite key={x} id={x} />)}</span></li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section className="panel q">
+        <p className="qlabel">Competing explanations and unknowns</p>
+        {o.competing.map((x) => (
+          <p key={x.id} className="comp"><span className={`lab lab-${x.status}`}>{x.status}</span><span className="kind">{x.kind === "benign" ? "Harmless" : "Concerning"}</span> {x.statement}</p>
+        ))}
+        {o.unknowns.length > 0 && <ul className="unknowns">{o.unknowns.map((u) => <li key={u}>{u}</li>)}</ul>}
+      </section>
+      <section className="panel q q-next">
+        <p className="qlabel">Next step</p>
+        <p className="qbig">{o.next_step}</p>
+        <p>Owner: <b>{o.owner}</b></p>
+        <p className="fine">"Approved for payment" on an invoice is the ERP's existing business approval. ControlRoom decisions are separate: they approve or reject a hold, a check or a task, and nothing ControlRoom does pays anyone.</p>
+        {c.waiting_for === "approval" && !c.busy && <button className="primary" onClick={() => go("Exposure & actions")}>Review the proposed actions</button>}
+        {c.status === "remediation" && <button className="primary" onClick={() => go("Verification & audit")}>Go to remediation and verification</button>}
+      </section>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ Investigation
 
+type AgentStat = { state: string; tools: number; calls: number; cost: number; last: string; model?: string; run?: Ev; done?: Ev; failed?: Ev; toolEvents: Ev[] };
+
 function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
+  const [open, setOpen] = useState<string | null>(null);
   const byAgent = useMemo(() => {
-    const m: Record<string, { state: string; tools: number; calls: number; cost: number; last: string; model?: string }> = {};
-    for (const a of AGENTS) m[a.name] = { state: "idle", tools: 0, calls: 0, cost: 0, last: "" };
-    let active: string | null = null;
+    const m: Record<string, AgentStat> = {};
+    for (const a of AGENTS) m[a.name] = { state: "idle", tools: 0, calls: 0, cost: 0, last: "", toolEvents: [] };
     for (const e of events) {
       const a = m[e.agent];
       if (!a) continue;
-      if (e.type === "agent_started") { a.state = "working"; a.model = e.data.model; active = e.agent; }
-      if (e.type === "tool_call") { a.tools++; a.last = e.text; }
+      if (e.type === "agent_started") { a.state = "working"; a.model = e.data.model; a.run = e; a.toolEvents = []; a.done = undefined; a.failed = undefined; }
+      if (e.type === "tool_call") { a.tools++; a.last = e.text; a.toolEvents.push(e); }
       if (e.type === "llm_call") { a.calls++; a.cost += e.data.cost_usd ?? 0; }
+      if (e.type === "agent_finished") a.done = e;
+      if (e.type === "agent_failed") { a.failed = e; a.state = "failed"; }
       if (["plan", "evidence", "links", "controls", "exposure", "hypotheses", "briefing", "actions", "verification"].includes(e.type)) {
         a.state = "done"; a.last = e.text;
       }
+      if (e.type === "exposure") { m["Exposure engine"].state = "done"; }
     }
-    void active;
+    if (c.status === "error") for (const k of Object.keys(m)) if (m[k].state === "working") m[k].state = "failed";
     return m;
   }, [events]);
   const controls = c.state.controls ?? [];
   const trace = events.filter((e) => e.type !== "llm_call");
+  const sel = open ? byAgent[open] : null;
 
   return (
     <div className="grid2">
       <div>
         <section className="panel">
-          <div className="panel-head"><h2>Agents</h2><span className="muted">LangGraph workflow on the Vultr VM. Every model call goes to Vultr Serverless Inference.</span></div>
+          <div className="panel-head"><h2>Agents</h2><span className="muted">Click an agent to see its input, tool calls, output and timing.</span></div>
           <div className="agents">
             {AGENTS.map((a) => {
               const s = byAgent[a.name];
               return (
-                <div key={a.name} className={`agent st-${s.state}`}>
-                  <div className="agent-top"><h3>{a.name}</h3><span className="agent-state">{s.state === "working" ? "Working" : s.state === "done" ? "Done" : "Waiting"}</span></div>
+                <button key={a.name} className={`agent st-${s.state} ${open === a.name ? "agent-open" : ""}`} onClick={() => setOpen(open === a.name ? null : a.name)}>
+                  <div className="agent-top"><h3>{a.name}</h3><span className="agent-state">{s.state === "working" ? "Running" : s.state === "done" ? "Completed" : s.state === "failed" ? "Failed" : "Queued"}</span></div>
                   <p className="job">{a.job}</p>
-                  <p className="agent-last">{s.last || " "}</p>
-                  <p className="agent-meta">{a.name === "Exposure engine" ? "code, no model" : `${s.model ?? ""} · ${s.tools} tool calls · ${s.calls} model calls${s.cost ? ` · $${s.cost.toFixed(4)}` : ""}`}</p>
-                </div>
+                  <p className="agent-last">{s.state === "idle" ? `Waits for ${a.after}` : s.last || " "}</p>
+                  <p className="agent-meta">{a.name === "Exposure engine" ? "code, no model" : `${s.model ?? ""} · ${s.tools} tool calls · ${s.calls} model calls${s.cost ? ` · $${s.cost.toFixed(4)}` : ""}${s.done ? ` · ${s.done.data.seconds}s` : ""}`}</p>
+                </button>
               );
             })}
           </div>
         </section>
+        {sel && open && (
+          <section className="panel agentdetail">
+            <div className="panel-head"><h2>{open}</h2>
+              <span className="muted">{sel.run ? `run ${sel.run.data.run_id} · ${sel.run.data.model} · prompt ${sel.run.data.prompt_version}` : open === "Exposure engine" ? "Deterministic code, no model" : "Not run yet"}</span></div>
+            {sel.run && (<>
+              <h3>Input (handed over by the workflow)</h3>
+              <pre className="rec">{sel.run.data.input}</pre>
+              <h3>Tools allowed</h3>
+              <p className="mono small">{(sel.run.data.tools ?? []).join(", ") || "none: a single structured answer"}</p>
+              <h3>Tool calls ({sel.toolEvents.length})</h3>
+              <ol className="audit">{sel.toolEvents.map((e) => <li key={e.seq}><span className="mono small">{e.text}</span></li>)}</ol>
+            </>)}
+            {sel.done && (<><h3>Output (validated by code before it is saved)</h3><pre className="rec">{prettyJson(sel.done.data.output)}</pre></>)}
+            {sel.failed && <p className="error">{sel.failed.text}</p>}
+          </section>
+        )}
         {c.state.plan && (
           <section className="panel">
             <div className="panel-head"><h2>Commander's plan</h2></div>
@@ -212,15 +322,20 @@ function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
         <ol>
           {[...trace].reverse().map((e) => (
             <li key={e.seq} className={`ev ev-${e.type}`}>
-              <span className="ev-agent">{e.agent}</span>
-              <span className="ev-text">{e.text}</span>
-              <time>{new Date(e.at).toLocaleTimeString()}</time>
+              <details>
+                <summary><span className="ev-agent">{e.agent}</span><span className="ev-text">{e.text}</span><time>{new Date(e.at).toLocaleTimeString()}</time></summary>
+                <pre className="rec">{JSON.stringify(e.data, null, 2)}</pre>
+              </details>
             </li>
           ))}
         </ol>
       </section>
     </div>
   );
+}
+
+function prettyJson(s: string) {
+  try { return JSON.stringify(JSON.parse(s), null, 2); } catch { return s; }
 }
 
 export function Checks({ checks }: { checks: Control[] }) {
@@ -230,20 +345,41 @@ export function Checks({ checks }: { checks: Control[] }) {
         <li key={r.id ?? r.test} className={`check c-${r.status}`}>
           <span className="cstat">{r.status === "exception" ? "Exception" : r.status === "exempt" ? "Exempt" : r.status === "pass" ? "Pass" : "N/A"}</span>
           <div><strong>{r.test.replaceAll("_", " ")}</strong> <span className="pol">{r.policy}</span>
-            <p>{r.explanation}</p>{r.run_by && <p className="fine">Run by: {r.run_by}</p>}</div>
+            <p>{r.explanation}</p>
+            {r.records?.length > 0 && <p className="fine">Records: {r.records.slice(0, 8).map((x) => <Cite key={x} id={x} />)}</p>}
+            {r.run_by && <p className="fine">Run by: {r.run_by}</p>}</div>
         </li>
       ))}
     </ul>
   );
 }
 
-// ------------------------------------------------------------------ Evidence
+// ------------------------------------------------------------------ Timeline
 
-function Cite({ id, caseId }: { id: string; caseId: string }) {
-  const doc = /^(DOC|EML)-/.test(id);
-  const href = doc ? `/api/documents/${id}?case=${caseId}` : /^(EV|CTL|LNK|HYP)-/.test(id) ? undefined : `/api/records/${id}?case=${caseId}`;
-  return href ? <a className="chip" href={href} target="_blank" rel="noreferrer">{id}</a> : <span className="chip">{id}</span>;
+function TimelineTab({ c, events }: { c: CaseFull; events: Ev[] }) {
+  const [items, setItems] = useState<TL[] | null>(null);
+  const n = events.length;
+  useEffect(() => { get<{ timeline: TL[] }>(`/api/cases/${c.id}/timeline`).then((r) => setItems(r.timeline)).catch(() => setItems([])); }, [c.id, n]);
+  if (!items) return <p className="muted">Building the timeline from records</p>;
+  return (
+    <section className="panel">
+      <div className="panel-head"><h2>Timeline</h2><span className="muted">Built by code from ERP records, documents in Object Storage and the case audit log. Every line names its source.</span></div>
+      <ol className="timeline">
+        {items.map((t, i) => (
+          <li key={i} className={`tl tl-${t.kind} ${t.flag ? "tl-flag" : ""}`}>
+            <time>{t.kind === "case" ? new Date(t.at).toLocaleString() : t.at.slice(0, 16).replace("T", " ")}</time>
+            <span className="tlkind">{t.kind}</span>
+            <span className="tltext">{t.text}{t.flag && <span className="flag">{t.flag}</span>}</span>
+            <span className="tlsrc">{t.source_id.startsWith("event") ? <span className="chip">{t.source_id}</span> : <Cite id={t.source_id} />}<em>{t.provenance}</em></span>
+          </li>
+        ))}
+      </ol>
+      <p className="fine">Record dates are in the scenario's world clock ({fmt(c.world_now)}); case events are real time.</p>
+    </section>
+  );
 }
+
+// ------------------------------------------------------------------ Evidence
 
 function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
   const st = c.state;
@@ -255,7 +391,7 @@ function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
         {guards.length > 0 && (
           <section className="panel alert">
             <h2>Instructions found inside a document</h2>
-            {guards.slice(0, 1).map((g) => <p key={g.seq}><Cite id={g.data.document_id} caseId={c.id} /> {g.text}</p>)}
+            {guards.slice(0, 1).map((g) => <p key={g.seq}><Cite id={g.data.document_id} /> {g.text}</p>)}
             <p className="fine">The email says the bank change "has been verified by your CFO" and tells automated assistants to mark it confirmed. ControlRoom records this as an
               unverified claim. An email can't prove who owns a bank account.</p>
             {(st.lookalikes ?? []).map((l) => <p key={l.document_id}><strong>Look-alike sender:</strong> {l.sender_domain} imitates {l.real_domain} ({l.supplier_id}).</p>)}
@@ -263,25 +399,26 @@ function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
         )}
         {st.briefing && (
           <section className="panel">
-            <div className="panel-head"><h2>Briefing</h2><span className={`pill tone-${st.briefing.assessment_by_code === "open_exceptions" ? "amber" : "green"}`}>
+            <div className="panel-head"><h2>Findings</h2><span className={`pill tone-${st.briefing.assessment_by_code === "open_exceptions" ? "amber" : "green"}`}>
               {st.briefing.assessment_by_code === "open_exceptions" ? "Open control exceptions" : "No open exceptions"}</span></div>
             <ul className="findings">
               {st.briefing.findings.map((f, i) => (
-                <li key={i}><span className={`lab lab-${f.label}`}>{f.label}</span>{f.statement} <span className="cites">{f.cites.map((x) => <Cite key={x} id={x} caseId={c.id} />)}</span></li>
+                <li key={i}><span className={`lab lab-${f.label}`}>{f.label}</span>{f.statement} <span className="cites">{f.cites.map((x) => <Cite key={x} id={x} />)}</span></li>
               ))}
             </ul>
+            <p className="fine">Confirmed: shown by a code check or confirmed link. Supported: backed by evidence, not conclusive. Unresolved: not enough to decide. Contradicted: the evidence conflicts.</p>
           </section>
         )}
         <section className="panel">
           <div className="panel-head"><h2>Hypotheses</h2><span className="muted">The Challenge Agent argues against the leading explanation.</span></div>
-          {!(st.hypotheses?.length) && <p className="muted">Not yet challenged.</p>}
+          {!(st.hypotheses?.length) && <p className="pending">{c.status === "new" ? "Pending: start the investigation." : c.status === "error" ? "Blocked: an earlier step failed. Retry from the checkpoint above." : "Pending: the Challenge Agent runs after the evidence, relationship, control and exposure steps finish."}</p>}
           <div className="hyps">
             {st.hypotheses?.map((h) => (
               <div key={h.id} className={`hyp k-${h.kind}`}>
                 <div className="hyp-top"><span className="kind">{h.kind === "benign" ? "Harmless explanation" : "Concerning explanation"}</span><span className={`lab lab-${h.status}`}>{h.status}</span></div>
                 <p className="stmt">{h.statement}</p>
-                {h.supporting.length > 0 && <p className="for">For: {h.supporting.map((x) => <Cite key={x} id={x} caseId={c.id} />)}</p>}
-                {h.contradicting.length > 0 && <p className="against">Against: {h.contradicting.map((x) => <Cite key={x} id={x} caseId={c.id} />)}</p>}
+                {h.supporting.length > 0 && <p className="for">Supporting: {h.supporting.map((x) => <Cite key={x} id={x} />)}</p>}
+                {h.contradicting.length > 0 && <p className="against">Contradicting: {h.contradicting.map((x) => <Cite key={x} id={x} />)}</p>}
                 <p className="fine">What would settle it: {h.what_would_settle_it}</p>
               </div>
             ))}
@@ -291,11 +428,13 @@ function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
       </div>
       <div>
         <section className="panel">
-          <div className="panel-head"><h2>Evidence ledger</h2><span className="muted">{st.evidence?.length ?? 0} accepted · {rejected.length} rejected by the validator</span></div>
+          <p className="fine">A document being a valid source doesn't make its claims true: emails from outside are labelled "Unverified claim".</p>
+        <div className="panel-head"><h2>Evidence ledger</h2><span className="muted">{st.evidence?.length ?? 0} accepted · {rejected.length} rejected by the validator</span></div>
+          {!st.evidence && <p className="pending">{c.status === "new" ? "Pending: start the investigation." : c.status === "error" ? "Blocked: the Evidence Agent's step failed. Nothing it produced was accepted. Retry from the checkpoint above." : "Pending: the Evidence Agent is reading records and documents. Each item is checked against its source before it's accepted."}</p>}
           <ul className="evidence">
             {st.evidence?.map((e) => (
               <li key={e.id} className={e.trust === "external-unverified" ? "untrusted" : ""}>
-                <div className="ev-top"><b>{e.id}</b><Cite id={e.source_id} caseId={c.id} /><span className={`lab ${e.label === "Unverified claim" ? "lab-Unresolved" : "lab-Confirmed"}`}>{e.label}</span></div>
+                <div className="ev-top"><b>{e.id}</b><Cite id={e.source_id} /><span className={`lab ${e.label === "Unverified claim" ? "lab-Unresolved" : "lab-Confirmed"}`}>{e.label}</span></div>
                 <p>{e.fact}</p>
                 <blockquote>{e.excerpt}</blockquote>
               </li>
@@ -322,10 +461,21 @@ function EvidenceTab({ c, events }: { c: CaseFull; events: Ev[] }) {
 
 // ------------------------------------------------------------------ Exposure and actions
 
-function ExposureTab({ c, onDone }: { c: CaseFull; onDone: () => void }) {
-  const ex = c.state.exposure;
-  const actions = c.state.actions ?? [];
-  const [by, setBy] = useState("Tom Okafor, Finance Director");
+function Lifecycle({ stages }: { stages: Stage[] }) {
+  return (
+    <ol className="life">
+      {stages.map((s, i) => (
+        <li key={i} className={`ls-${s.state}`} title={[s.by, s.note].filter(Boolean).join(" · ")}>
+          <span className="lsdot" />{s.stage}{s.by && s.state !== "waiting" ? <em> · {s.by}</em> : s.state === "waiting" && s.by ? <em> · waiting for {s.by}</em> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function ExposureTab({ c, actions, onDone }: { c: CaseFull; actions: ActionView[]; onDone: () => void }) {
+  const ex = c.state.exposure as (CaseFull["state"]["exposure"] & { invoice_count?: number; pending_payment?: number; on_hold?: number; already_paid?: number; includes?: string; excludes?: string }) | undefined;
+  const { can, needs } = usePersona();
   const [dec, setDec] = useState<Record<string, { decision: string; reason: string }>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -342,21 +492,27 @@ function ExposureTab({ c, onDone }: { c: CaseFull; onDone: () => void }) {
   return (
     <div className="grid2">
       <section className="panel">
-        <div className="panel-head"><h2>Exposure</h2><span className="muted">Computed by code. Potential exposure, not a confirmed loss.</span></div>
+        <div className="panel-head"><h2>Potential exposure</h2><span className="muted">Computed by code from the records below. Not a confirmed loss.</span></div>
         {!ex ? <p className="muted">Not computed yet.</p> : (
           <>
             <div className="exnums">
-              <div><span>In {ex.run_id}</span><strong>{usd(ex.total_in_run)}</strong></div>
+              <div><span>In {ex.run_id} ({ex.invoice_count ?? ex.lines.length} invoices)</span><strong>{usd(ex.total_in_run)}</strong></div>
               <div><span>Not backed by receipts</span><strong className="red">{usd(ex.unsupported_by_receipts)}</strong></div>
               <div><span>To an unverified new bank account</span><strong className="amber">{usd(ex.to_unverified_changed_account)}</strong></div>
             </div>
+            <dl className="mini row">
+              <div><dt>Pending payment</dt><dd>{usd(ex.pending_payment)}</dd></div>
+              <div><dt>On hold</dt><dd>{usd(ex.on_hold)}</dd></div>
+              <div><dt>Already paid</dt><dd>{usd(ex.already_paid)}</dd></div>
+              <div><dt>Confirmed loss</dt><dd>None established</dd></div>
+            </dl>
             <table className="table">
               <thead><tr><th>Invoice</th><th>Supplier</th><th className="num">Amount</th><th>Receipt check</th><th>Payment</th></tr></thead>
               <tbody>
                 {ex.lines.map((l) => (
                   <tr key={l.invoice_id}>
-                    <td><Cite id={l.invoice_id} caseId={c.id} /></td>
-                    <td>{l.supplier_id}{l.to_recently_changed_account && <span className="flag">new bank account</span>}</td>
+                    <td><Cite id={l.invoice_id} /></td>
+                    <td><Cite id={l.supplier_id} />{l.to_recently_changed_account && <span className="flag">new bank account</span>}</td>
                     <td className="num money">{usd(l.amount)}</td>
                     <td className="mono small">{l.formula}</td>
                     <td>{l.payment_status}</td>
@@ -365,19 +521,23 @@ function ExposureTab({ c, onDone }: { c: CaseFull; onDone: () => void }) {
               </tbody>
             </table>
             <p className="formula mono">{ex.formula}</p>
+            {ex.includes && <p className="fine"><b>Includes:</b> {ex.includes}</p>}
+            {ex.excludes && <p className="fine"><b>Excludes:</b> {ex.excludes}</p>}
           </>
         )}
       </section>
       <section className="panel">
-        <div className="panel-head"><h2>Proposed actions</h2><span className="muted">The Resolution Agent proposes. A person decides. No action can pay anyone.</span></div>
+        <div className="panel-head"><h2>Actions</h2><span className="muted">Proposed by the Resolution Agent. Each needs the Finance Director. Nothing can pay anyone.</span></div>
         {actions.length === 0 && <p className="muted">No actions proposed yet.</p>}
         <ul className="actions">
           {actions.map((a) => (
             <li key={a.id} className={`act s-${a.status}`}>
-              <div className="act-top"><b>{a.label}</b><span className="targets">{a.target_ids.map((t) => <Cite key={t} id={t} caseId={c.id} />)}</span></div>
+              <div className="act-top"><b>{a.label}</b><span className="targets">{a.target_ids.map((t) => <Cite key={t} id={t} />)}</span></div>
               <p>{a.rationale}</p>
-              <p className="fine">Owner: {a.owner}</p>
-              {waiting ? (
+              <p className="fine">Owner: {a.owner}{a.due ? ` · Due ${a.due.slice(0, 16).replace("T", " ")} (world clock)` : ""}</p>
+              {a.expected_outcome && <p className="fine">Expected outcome: {a.expected_outcome}</p>}
+              <Lifecycle stages={a.lifecycle} />
+              {waiting && (
                 <div className="decide">
                   {(["approved", "rejected"] as const).map((d) => (
                     <label key={d} className={dec[a.id]?.decision === d ? `on ${d}` : ""}>
@@ -385,23 +545,21 @@ function ExposureTab({ c, onDone }: { c: CaseFull; onDone: () => void }) {
                       {d === "approved" ? "Approve" : "Reject"}
                     </label>
                   ))}
-                  <input className="reason" placeholder="Reason (optional)" value={dec[a.id]?.reason ?? ""} onChange={(e) => setDec({ ...dec, [a.id]: { ...dec[a.id], reason: e.target.value } })} />
+                  <input className="reason" placeholder={dec[a.id]?.decision === "rejected" ? "Reason (required to reject)" : "Reason (optional)"} value={dec[a.id]?.reason ?? ""}
+                    onChange={(e) => setDec({ ...dec, [a.id]: { ...dec[a.id], reason: e.target.value } })} />
                 </div>
-              ) : a.decision ? (
-                <p className={`decided ${a.decision}`}>{a.decision === "approved" ? "Approved" : "Rejected"} by {a.decided_by}{a.reason ? `: ${a.reason}` : ""} · {a.status.replace("_", " ")}</p>
-              ) : null}
+              )}
             </li>
           ))}
         </ul>
         {waiting && actions.length > 0 && (
           <div className="approvebar">
-            <label>Decision by <input value={by} onChange={(e) => setBy(e.target.value)} /></label>
-            <button className="primary" disabled={busy || by.trim().length < 2} onClick={async () => {
+            <PersonaAction perm="decide" busy={busy} label="Submit decisions" onClick={async (persona) => {
               setBusy(true); setErr(null);
-              try { await post(`/api/cases/${c.id}/decisions`, { by, decisions: dec }); onDone(); } catch (e) { setErr((e as Error).message); }
+              try { await post(`/api/cases/${c.id}/decisions`, { persona, decisions: dec }); onDone(); } catch (e) { setErr((e as Error).message); }
               setBusy(false);
-            }}>{busy ? "Submitting" : "Submit decisions"}</button>
-            <p className="fine">The workflow is paused in Postgres until you decide. It survives an API restart.</p>
+            }} />
+            <p className="fine">{can("decide") ? "The workflow is paused in Postgres until you decide. It survives an API restart." : needs("decide")}</p>
           </div>
         )}
         {err && <p className="error">{err}</p>}
@@ -410,21 +568,27 @@ function ExposureTab({ c, onDone }: { c: CaseFull; onDone: () => void }) {
   );
 }
 
+function PersonaAction({ perm, label, busy, onClick, className = "primary" }: { perm: string; label: string; busy: boolean; onClick: (persona: string) => void; className?: string }) {
+  const { persona, can, needs } = usePersona();
+  // The button stays clickable for the wrong persona so the server's refusal can be shown on camera.
+  return <button className={className} disabled={busy} title={can(perm) ? "" : needs(perm)} onClick={() => onClick(persona)}>{busy ? "Working" : label}</button>;
+}
+
 // ------------------------------------------------------------------ Verification
 
-function VerifyTab({ c, events, onDone }: { c: CaseFull; events: Ev[]; onDone: () => void }) {
+function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; events: Ev[]; actions: ActionView[]; criteria: Criteria; onDone: () => void }) {
   const st = c.state;
-  const [by, setBy] = useState("Tom Okafor, Finance Director");
   const [override, setOverride] = useState("");
   const [showOverride, setShowOverride] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const refusal = [...events].reverse().find((e) => e.type === "close_refused");
+  const denied = [...events].reverse().find((e) => e.type === "permission_denied");
   const closedEv = events.find((e) => e.type === "closed");
   const remed = c.status === "remediation";
   const ready = c.waiting_for === "remediation" && !c.busy;
   const docs = st.remediation_docs ?? [];
-  const audit = (st.actions ?? []).find((a) => a.kind === "escalate_to_audit" && a.decision === "approved");
+  const audit = actions.find((a) => a.kind === "escalate_to_audit" && a.decision === "approved");
   const isA = c.template === "INC-0412";
 
   const act = async (name: string, fn: () => Promise<unknown>) => {
@@ -453,7 +617,9 @@ function VerifyTab({ c, events, onDone }: { c: CaseFull; events: Ev[]; onDone: (
         )}
         <section className="panel">
           <div className="panel-head"><h2>Closure checks</h2><span className="muted">{st.verification ? `Computed ${new Date(st.verification.at ?? st.verification.last_refusal ?? "").toLocaleTimeString()}` : "Run verification to compute"}</span></div>
-          {st.verification ? <Checks checks={st.verification.checks} /> : <p className="muted">Not verified yet.</p>}
+          {st.verification ? <Checks checks={st.verification.checks} /> : criteria.length > 0 ? (<>
+            <p className="pending">Not verified yet. These are the criteria code will check, shown with their current state. The case can't close until all pass, or the Finance Director records an override with a reason.</p>
+            <Checks checks={criteria} /></>) : <p className="pending">Criteria appear once the control tests have run.</p>}
           {st.verification?.agent && (
             <div className={`vagent ${st.verification.agent.recommendation}`}>
               <b>Verification Agent: {st.verification.agent.recommendation === "close" ? "recommends closing" : "keep open"}</b>
@@ -465,43 +631,49 @@ function VerifyTab({ c, events, onDone }: { c: CaseFull; events: Ev[]; onDone: (
       <div>
         {remed && (
           <section className="panel">
-            <div className="panel-head"><h2>Remediation</h2><span className="muted">What the teams do after approval. Each step adds a real document to Object Storage and updates this case's ERP copy.</span></div>
-            <ul className="tasks">
-              {(st.actions ?? []).filter((a) => a.decision === "approved").map((a) => (
-                <li key={a.id}><span className={`tstat ${a.status}`}>{a.status.replace("_", " ")}</span>{a.label} <span className="fine">· {a.owner}</span></li>
+            <div className="panel-head"><h2>Remediation tasks</h2><span className="muted">Each step adds a real document to Object Storage and updates this case's copy of the ERP.</span></div>
+            <ul className="actions">
+              {actions.filter((a) => a.decision === "approved").map((a) => (
+                <li key={a.id} className="act"><b>{a.label}</b> <span className="fine">· {a.owner}</span><Lifecycle stages={a.lifecycle} />
+                  {a.status === "task_open" && !(isA && ["supplier_callback", "due_diligence", "receiving_confirmation", "escalate_to_audit"].includes(a.kind)) && (
+                    <TaskDone caseId={c.id} actionId={a.id} owner={a.owner} onDone={onDone} />
+                  )}
+                </li>
               ))}
             </ul>
             {isA && (
               <div className="simbtns">
-                <button disabled={!!busy || docs.includes("DOC-CB-301")} onClick={() => act("cb", () => post(`/api/cases/${c.id}/remediation`, { kind: "callback" }))}>
-                  {docs.includes("DOC-CB-301") ? "✓ Callback note added" : "Procurement: callback and due diligence"}</button>
-                <button disabled={!!busy || docs.includes("DOC-RC-7104")} onClick={() => act("rc", () => post(`/api/cases/${c.id}/remediation`, { kind: "receiving" }))}>
-                  {docs.includes("DOC-RC-7104") ? "✓ Receiving confirmed" : "Warehouse and AP: confirm receipts"}</button>
-                {audit && <button disabled={!!busy || !!audit.acknowledged_by} onClick={() => act("au", () => post(`/api/cases/${c.id}/audit-ack`))}>
-                  {audit.acknowledged_by ? "✓ Audit acknowledged" : "Internal Audit: acknowledge"}</button>}
+                <PersonaAction perm="remediation:callback" className="" busy={busy === "cb"} label={docs.includes("DOC-CB-301") ? "✓ Callback note added" : "Procurement: callback and due diligence"}
+                  onClick={(persona) => !docs.includes("DOC-CB-301") && act("cb", () => post(`/api/cases/${c.id}/remediation`, { kind: "callback", persona }))} />
+                <PersonaAction perm="remediation:receiving" className="" busy={busy === "rc"} label={docs.includes("DOC-RC-7104") ? "✓ Receiving confirmed" : "Warehouse and AP: confirm receipts"}
+                  onClick={(persona) => !docs.includes("DOC-RC-7104") && act("rc", () => post(`/api/cases/${c.id}/remediation`, { kind: "receiving", persona }))} />
+                {audit && <PersonaAction perm="audit_ack" className="" busy={busy === "au"} label={audit.acknowledged_by ? "✓ Audit acknowledged" : "Internal Audit: acknowledge"}
+                  onClick={(persona) => !audit.acknowledged_by && act("au", () => post(`/api/cases/${c.id}/audit-ack`, { persona }))} />}
               </div>
             )}
-            <p className="fine">These buttons stand in for the Procurement, Warehouse and Audit teams. They are labelled as a simulation.</p>
+            <p className="fine">Simulation: switch persona at the top right to act as Procurement, the Warehouse or Internal Audit. Each button checks the role on the server.</p>
             <div className="closebar">
               <button className="secondary" disabled={!ready || !!busy} onClick={() => act("v", () => post(`/api/cases/${c.id}/verify`))}>{busy === "v" || (c.busy && remed) ? "Verifying" : "Run verification"}</button>
-              <label>Closed by <input value={by} onChange={(e) => setBy(e.target.value)} /></label>
-              <button className="primary" disabled={!ready || !!busy} onClick={() => act("c", () => post(`/api/cases/${c.id}/close`, { by, override_reason: "" }))}>Close incident</button>
+              <PersonaAction perm="close" busy={busy === "c"} label="Close incident" onClick={(persona) => ready && act("c", () => post(`/api/cases/${c.id}/close`, { persona, override_reason: "" }))} />
             </div>
             <button className="linkbtn" onClick={() => setShowOverride(!showOverride)}>Close with a documented override</button>
             {showOverride && (
               <div className="override">
-                <textarea placeholder="Why this incident should close although checks fail. Recorded in the signed report." value={override} onChange={(e) => setOverride(e.target.value)} />
-                <button className="danger" disabled={!ready || override.trim().length < 10 || !!busy} onClick={() => act("o", () => post(`/api/cases/${c.id}/close`, { by, override_reason: override }))}>Close with override</button>
+                <textarea placeholder="Why this incident should close although checks fail (at least 20 characters). Recorded in the signed report." value={override} onChange={(e) => setOverride(e.target.value)} />
+                <PersonaAction perm="override" className="danger" busy={busy === "o"} label="Close with override"
+                  onClick={(persona) => ready && act("o", () => post(`/api/cases/${c.id}/close`, { persona, override_reason: override }))} />
               </div>
             )}
             {err && <p className="error">{err}</p>}
+            {denied && <p className="fine">Last refusal: {denied.agent}: {denied.text}</p>}
           </section>
         )}
         <section className="panel">
-          <div className="panel-head"><h2>Audit trail</h2><span className="muted">Every agent step, model call summary and human decision, stored in Postgres.</span></div>
+          <div className="panel-head"><h2>Audit trail</h2><span className="muted">Every agent step and human decision, with who and when, stored in Postgres.</span>
+            <a className="button small" href={`/api/cases/${c.id}/export`}>Export</a></div>
           <ol className="audit">
             {events.filter((e) => e.type !== "llm_call" && e.type !== "tool_call").map((e) => (
-              <li key={e.seq}><time>{fmtTime(e.at)}</time><b>{e.agent}</b> {e.text}</li>
+              <li key={e.seq} className={e.type === "permission_denied" ? "denied" : ""}><time>{fmtTime(e.at)}</time><b>{e.agent}</b> {e.text}</li>
             ))}
           </ol>
           <p className="fine">World clock for this scenario: {fmt(c.world_now)}.</p>
@@ -513,4 +685,27 @@ function VerifyTab({ c, events, onDone }: { c: CaseFull; events: Ev[]; onDone: (
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function runningAgent(events: Ev[]) {
+  const open = new Map<string, boolean>();
+  for (const e of events) {
+    if (e.type === "agent_started") open.set(e.agent, true);
+    if (e.type === "agent_finished" || e.type === "agent_failed") open.set(e.agent, false);
+  }
+  const names = [...open.entries()].filter(([, v]) => v).map(([k]) => k);
+  return names.length ? `Running: ${names.join(", ")}` : null;
+}
+
+function TaskDone({ caseId, actionId, owner, onDone }: { caseId: string; actionId: string; owner: string; onDone: () => void }) {
+  const { persona } = usePersona();
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="decide">
+      <input className="reason" placeholder={`What ${owner.split(",")[0]} found (at least 10 characters)`} value={note} onChange={(e) => setNote(e.target.value)} />
+      <button disabled={note.trim().length < 10} onClick={() => post(`/api/cases/${caseId}/tasks/${actionId}/complete`, { persona, note }).then(onDone).catch((e) => setErr(e.message))}>Mark done</button>
+      {err && <span className="error small">{err}</span>}
+    </div>
+  );
 }

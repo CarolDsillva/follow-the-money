@@ -316,7 +316,17 @@ def exposure(world: World, invoice_ids: list[str]) -> dict:
                       "formula": f"({billed} billed - {received} received) x ${price:,.2f} = ${unsupported:,.2f}",
                       "to_recently_changed_account": recent_change,
                       "records": [i, c["po"]["id"]] + [g["id"] for g in c["receipts"]] + [p["id"] for p in c["payments"]]})
+    pays = [p for i in invoice_ids for p in world.find("payment", invoice_id=i)]
     return {"currency": world.meta["currency"], "run_id": world.run["id"], "lines": lines,
+            "invoice_count": len(lines), "invoice_total": sum(l["amount"] for l in lines),
+            "pending_payment": sum(p["amount"] for p in pays if p["status"] == "scheduled"),
+            "on_hold": sum(p["amount"] for p in pays if p["status"] == "on_hold"),
+            "already_paid": sum(p["amount"] for p in pays if p["status"] == "paid"),
+            "confirmed_loss": None,
+            "includes": f"Invoices {', '.join(sorted(invoice_ids))} scheduled or held in {world.run['id']}; receipt shortfall at invoiced unit price; "
+                        "payments to a bank account changed in the last 14 days without a callback.",
+            "excludes": "Other invoices from these suppliers, earlier paid invoices, tax, freight and any recovery. "
+                        "No loss is confirmed: nothing has been paid and no misconduct is established.",
             "total_in_run": scheduled_total, "unsupported_by_receipts": unsupported_total,
             "to_unverified_changed_account": changed_total,
             "formula": " + ".join(f"${l['in_payment_run']:,.0f}" for l in lines) + f" = ${scheduled_total:,.0f} potentially exposed in {world.run['id']}",
@@ -372,6 +382,13 @@ def closure_checks(world: World, case: dict) -> list[dict]:
         checks.append(run_control_test(world, test, invs))
     if not failed_tests:
         checks.append(_result("open_exceptions", "all", "pass", "No control exception remains open (exempt results were verified by code).", invs))
+    open_tasks = [a for a in case.get("actions", []) if a.get("decision") == "approved" and a.get("status") == "task_open"
+                  and a["kind"] != "escalate_to_audit"]
+    if any(a.get("decision") == "approved" and a["kind"] != "escalate_to_audit" and a.get("status") in ("task_open", "done")
+           and a["kind"] not in ("review_hold", "release_for_payment") for a in case.get("actions", [])):
+        checks.append(_result("approved_tasks", "workflow", "exception" if open_tasks else "pass",
+                              "Open: " + "; ".join(f"{a['label']} ({a['owner']})" for a in open_tasks) if open_tasks
+                              else "Every approved task has been completed by its owner.", invs))
     for a in case.get("actions", []):
         if a["kind"] == "escalate_to_audit" and a.get("decision") == "approved":
             ack = a.get("acknowledged_by")

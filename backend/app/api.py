@@ -16,10 +16,10 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from app import agents, northstar, rules
+from app import agents, northstar, rules, views
 from app.graph import Engine
 from app.llm import models_for
-from app.store import Store
+from app.store import Store, now
 
 store = Store.from_env()
 store.init()
@@ -60,6 +60,12 @@ def health():
             "models": {"specialists": models_for("evidence"), "challenge_and_commander": models_for("challenge")}}
 
 
+def _inbox_row(c: dict) -> dict:
+    full = store.case(c["id"])
+    return {**c, "potential_exposure": float(c["potential_exposure"]), "cost": store.cost(c["id"]),
+            "severity": views.severity(full, full["state"]), "owner": "Elena Brandt, AP Operations Lead"}
+
+
 @app.get("/api/overview")
 def overview():
     world = store.world(docs=False)
@@ -68,7 +74,7 @@ def overview():
     return {"world_now": world.meta["world_now"], "payment_run": {**run, "payments": len(pays), "total": sum(p["amount"] for p in pays)},
             "approval_limit": world.limit, "currency": world.meta["currency"],
             "counts": {k: len(v) for k, v in world.records.items()}, "documents": len(store.list_documents()),
-            "cases": [{**c, "potential_exposure": float(c["potential_exposure"]), "cost": store.cost(c["id"])} for c in store.cases()],
+            "cases": [_inbox_row(c) for c in store.cases()],
             "infrastructure": {"compute": "Vultr Cloud Compute, Seattle", "database": "Vultr Managed PostgreSQL, Seattle",
                                "object_storage": store.s3_endpoint.replace("https://", "") + " (Vultr Object Storage)",
                                "inference": "Vultr Serverless Inference", "models": {"specialists": models_for("evidence")[0],
@@ -96,7 +102,10 @@ def case_view(case_id: str):
 
 @app.get("/api/cases/{case_id}/graph")
 def case_graph(case_id: str):
-    """Nodes and edges for the relationship map, laid out in columns by type."""
+    """Nodes and edges for the relationship map, laid out in columns by type.
+
+    Shared-attribute links come from the deterministic matcher, so they show from the moment the
+    incident opens. Until the Relationship Agent has assessed them they are marked as matcher-only."""
     c = _case_or_404(case_id)
     st = c["state"]
     world = store.world(case_id, docs=False)
@@ -105,36 +114,38 @@ def case_graph(case_id: str):
     def node(id_, kind, label, sub="", col=0, flag=None):
         nodes.setdefault(id_, {"id": id_, "kind": kind, "label": label, "sub": sub, "col": col, "flag": flag})
 
-    links = st.get("links") or []
+    assessed = bool(st.get("links"))
+    links = st.get("links") or [{**l, "status": "Matcher", "assessment": "awaiting Relationship Agent"}
+                                for l in rules.shared_attributes(world, c["supplier_ids"])]
     for i in c["invoice_ids"]:
         ch = world.chain(i)
         s, pr, inv = ch["supplier"], ch["request"], ch["invoice"]
         node(s["id"], "supplier", s["legal_name"], s["id"], 1, "blocked" if s.get("status") == "blocked" else None)
         node(pr["id"], "request", pr["id"], f"${pr['amount']:,.0f} · {pr['created_at'][11:16]}", 2)
-        node(inv["id"], "invoice", inv["id"], f"${inv['amount']:,.0f} · {inv['status'].replace('_', ' ')}", 3)
-        edges.append({"from": s["id"], "to": pr["id"], "label": "supplier on", "kind": "fact"})
-        edges.append({"from": pr["id"], "to": inv["id"], "label": f"via {ch['po']['id']}", "kind": "fact"})
+        node(inv["id"], "invoice", inv["id"], f"${inv['amount']:,.0f} · ERP: {inv['status'].replace('_', ' ')}", 3)
+        edges.append({"from": s["id"], "to": pr["id"], "label": "supplier on", "kind": "fact", "ref": pr["id"]})
+        edges.append({"from": pr["id"], "to": inv["id"], "label": f"via {ch['po']['id']}", "kind": "fact", "ref": ch["po"]["id"]})
         for p in ch["payments"]:
             node(p["id"], "payment", p["id"], f"{p['run_id']} · {p['status'].replace('_', ' ')}", 4, "held" if p["status"] == "on_hold" else None)
-            edges.append({"from": inv["id"], "to": p["id"], "label": "scheduled", "kind": "fact"})
-        if links:
-            for role in ("approver_id", "requester_id"):
-                e = world.get(pr[role])
-                node(e["id"], "person", e["name"], e["role"], 2.5 if role == "approver_id" else 2.5)
-                edges.append({"from": e["id"], "to": pr["id"], "label": "approved" if role == "approver_id" else "requested", "kind": "fact"})
+            edges.append({"from": inv["id"], "to": p["id"], "label": "scheduled", "kind": "fact", "ref": p["id"]})
+        for role in ("approver_id", "requester_id"):
+            e = world.get(pr[role])
+            node(e["id"], "person", e["name"], e["role"], 2)
+            edges.append({"from": e["id"], "to": pr["id"], "label": "approved" if role == "approver_id" else "requested", "kind": "fact", "ref": pr["id"]})
     for l in links:
         if l["strength"] == "fact":
             continue
         attr_id = f"{l['attribute']}:{l['value']}"
         label = {"bank_account_token": f"Bank {l['value']}", "phone": l["value"], "address": l["value"].split(",")[0]}[l["attribute"]]
-        node(attr_id, l["attribute"], label, l["attribute"].replace("_", " ").replace("token", ""), 0)
+        node(attr_id, l["attribute"], label, f"shared {l['attribute'].replace('_token', '').replace('_', ' ')} · {l['strength']}", 0)
+        kind = "matcher" if l["status"] == "Matcher" else ("confirmed" if l["status"] == "Confirmed" else "unconfirmed")
         for sid in (l["from"], l["to"]):
             if not any(e["from"] == attr_id and e["to"] == sid for e in edges):
-                edges.append({"from": attr_id, "to": sid, "label": l["explanation"], "kind": l["status"].lower(), "link_id": l["id"]})
+                edges.append({"from": attr_id, "to": sid, "label": l["explanation"], "kind": kind, "ref": l["id"]})
     for lk in st.get("lookalikes") or []:
         node(lk["document_id"], "email", lk["document_id"], lk["sender_domain"], 0, "lookalike")
-        edges.append({"from": lk["document_id"], "to": lk["supplier_id"], "label": f"imitates {lk['real_domain']}", "kind": "warning"})
-    return {"nodes": list(nodes.values()), "edges": edges, "investigated": bool(links)}
+        edges.append({"from": lk["document_id"], "to": lk["supplier_id"], "label": f"imitates {lk['real_domain']}", "kind": "warning", "ref": lk["document_id"]})
+    return {"nodes": list(nodes.values()), "edges": edges, "investigated": assessed}
 
 
 @app.get("/api/cases/{case_id}/events")
@@ -194,13 +205,50 @@ def retry(case_id: str):
     return {"retrying": True}
 
 
+PERSONAS = {
+    "ap_lead": {"name": "Elena Brandt", "role": "AP Operations Lead"},
+    "finance_director": {"name": "Tom Okafor", "role": "Finance Director"},
+    "internal_audit": {"name": "Rafael Moreno", "role": "Internal Audit Manager"},
+    "procurement": {"name": "Grace Liu", "role": "Procurement Lead"},
+    "warehouse": {"name": "Ana Petrov", "role": "Warehouse Supervisor"},
+}
+# Who may do what. Checked here, on the server; the UI only mirrors it.
+PERMISSIONS = {
+    "decide": {"finance_director"},
+    "close": {"finance_director"},
+    "override": {"finance_director"},
+    "audit_ack": {"internal_audit"},
+    "remediation:callback": {"procurement"},
+    "remediation:receiving": {"warehouse"},
+}
+
+
+def _actor(case_id: str, persona: str, permission: str) -> str:
+    p = PERSONAS.get(persona)
+    if not p:
+        raise HTTPException(400, "Unknown persona")
+    allowed = PERMISSIONS[permission]
+    if persona not in allowed:
+        need = " or ".join(PERSONAS[a]["role"] for a in sorted(allowed))
+        store.event(case_id, f"{p['name']}, {p['role']}", "permission_denied",
+                    f"Refused: {permission.replace('_', ' ')} needs the {need}", {"persona": persona, "permission": permission})
+        raise HTTPException(403, f"{p['role']} can't do this. It needs the {need}.")
+    return f"{p['name']}, {p['role']}"
+
+
+@app.get("/api/personas")
+def personas():
+    return {"personas": PERSONAS, "permissions": {k: sorted(v) for k, v in PERMISSIONS.items()},
+            "note": "Demo personas, not authentication. Permissions are enforced by the API."}
+
+
 class Decision(BaseModel):
     decision: str = Field(pattern="^(approved|rejected)$")
     reason: str = Field("", max_length=500)
 
 
 class Decisions(BaseModel):
-    by: str = Field(..., min_length=2, max_length=80)
+    persona: str
     decisions: dict[str, Decision]
 
 
@@ -209,13 +257,20 @@ def decide(case_id: str, body: Decisions):
     _case_or_404(case_id)
     if engine.waiting_for(case_id) != "approval" or engine.busy(case_id):
         raise HTTPException(409, "The case is not waiting for approval")
-    engine.resume(case_id, {"by": body.by, "decisions": {k: v.model_dump() for k, v in body.decisions.items()}})
+    by = _actor(case_id, body.persona, "decide")
+    rejected_without_reason = [k for k, v in body.decisions.items() if v.decision == "rejected" and not v.reason.strip()]
+    if rejected_without_reason:
+        raise HTTPException(422, f"Give a reason for each rejection: {', '.join(rejected_without_reason)}")
+    engine.resume(case_id, {"by": by, "decisions": {k: v.model_dump() for k, v in body.decisions.items()}})
     return {"resumed": True}
 
 
-class Remediation(BaseModel):
+class Act(BaseModel):
+    persona: str
+
+
+class Remediation(Act):
     kind: str
-    by: str = "Demo operator"
 
 
 @app.post("/api/cases/{case_id}/remediation")
@@ -223,18 +278,41 @@ def remediation(case_id: str, body: Remediation):
     c = _case_or_404(case_id)
     if body.kind not in northstar.REMEDIATION or c["status"] != "remediation" or c.get("template") != "INC-0412":
         raise HTTPException(409, "No such remediation step for this case")
-    who = {"callback": "Grace Liu, Procurement Lead", "receiving": "Ana Petrov, Warehouse Supervisor"}[body.kind]
+    who = _actor(case_id, body.persona, f"remediation:{body.kind}")
     engine.add_remediation(case_id, body.kind, who)
     return {"added": body.kind}
 
 
 @app.post("/api/cases/{case_id}/audit-ack")
-def audit_ack(case_id: str):
+def audit_ack(case_id: str, body: Act):
     c = _case_or_404(case_id)
     if c["status"] != "remediation":
         raise HTTPException(409, "Not in remediation")
-    engine.acknowledge_audit(case_id, "Rafael Moreno, Internal Audit Manager")
+    engine.acknowledge_audit(case_id, _actor(case_id, body.persona, "audit_ack"))
     return {"acknowledged": True}
+
+
+class TaskDone(Act):
+    note: str = Field(..., min_length=10, max_length=600)
+
+
+@app.post("/api/cases/{case_id}/tasks/{action_id}/complete")
+def complete_task(case_id: str, action_id: str, body: TaskDone):
+    """The task's owner records it as done, with a note. Only the owner's persona may do it."""
+    c = _case_or_404(case_id)
+    a = next((x for x in c["state"].get("actions", []) if x["id"] == action_id), None)
+    if not a or c["status"] != "remediation":
+        raise HTTPException(409, "No such open task")
+    p = PERSONAS.get(body.persona)
+    if not p or not a["owner"].startswith(p["name"]):
+        who = f"{p['name']}, {p['role']}" if p else body.persona
+        store.event(case_id, who, "permission_denied", f"Refused: only {a['owner']} can complete this task", {"action_id": action_id})
+        raise HTTPException(403, f"Only the task owner, {a['owner']}, can complete it.")
+    try:
+        engine.complete_task(case_id, action_id, f"{p['name']}, {p['role']}", body.note.strip())
+    except KeyError:
+        raise HTTPException(409, "That task isn't open")
+    return {"done": action_id}
 
 
 @app.post("/api/cases/{case_id}/verify", status_code=202)
@@ -246,8 +324,7 @@ def verify(case_id: str):
     return {"resumed": True}
 
 
-class Close(BaseModel):
-    by: str = Field(..., min_length=2, max_length=80)
+class Close(Act):
     override_reason: str = Field("", max_length=1000)
 
 
@@ -256,8 +333,57 @@ def close(case_id: str, body: Close):
     _case_or_404(case_id)
     if engine.waiting_for(case_id) != "remediation" or engine.busy(case_id):
         raise HTTPException(409, "The case can't be closed from its current state")
-    engine.resume(case_id, {"action": "close", "by": body.by, "override_reason": body.override_reason})
+    by = _actor(case_id, body.persona, "override" if body.override_reason.strip() else "close")
+    if body.override_reason.strip() and len(body.override_reason.strip()) < 20:
+        raise HTTPException(422, "An override needs a written reason of at least 20 characters")
+    engine.resume(case_id, {"action": "close", "by": by, "override_reason": body.override_reason})
     return {"resumed": True}
+
+
+@app.get("/api/cases/{case_id}/overview")
+def case_overview(case_id: str):
+    c = _case_or_404(case_id)
+    world = store.world(case_id, docs=False)
+    st = c["state"]
+    checks = (st.get("verification") or {}).get("checks") or []
+    criteria = []
+    if st.get("controls") is not None and not checks:
+        criteria = rules.closure_checks(world, {**c, **st, "invoice_ids": c["invoice_ids"]})
+    return {"overview": views.overview(c, st, store.events(case_id), world),
+            "actions": [{**a, "lifecycle": views.lifecycle(a, checks or criteria)} for a in st.get("actions") or []],
+            "criteria": criteria}
+
+
+@app.get("/api/cases/{case_id}/timeline")
+def case_timeline(case_id: str):
+    c = _case_or_404(case_id)
+    world = store.world(case_id, docs=True)
+    return {"timeline": views.timeline(c, c["state"], store.events(case_id), world)}
+
+
+@app.get("/api/cases/{case_id}/lookup/{ref}")
+def case_lookup(case_id: str, ref: str):
+    c = _case_or_404(case_id)
+    world = store.world(case_id, docs=False)
+    hit = views.lookup(ref, c, c["state"], world, store, case_id)
+    if not hit:
+        raise HTTPException(404, f"Nothing called {ref} in this case")
+    return hit
+
+
+@app.get("/api/cases/{case_id}/export")
+def export(case_id: str):
+    """The full incident record at any stage: state, decisions, every event and the timeline."""
+    c = _case_or_404(case_id)
+    world = store.world(case_id, docs=True)
+    events = store.events(case_id)
+    body = {"exported_at": now(), "synthetic_data": True,
+            "case": {k: (float(v) if k == "potential_exposure" else v) for k, v in c.items() if k != "state"},
+            "state": c["state"], "cost": store.cost(case_id),
+            "timeline": views.timeline(c, c["state"], events, world),
+            "events": [{**e, "at": e["at"].isoformat()} for e in events]}
+    return Response(json.dumps(body, indent=1, default=str), media_type="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{case_id}-incident-record.json"'})
 
 
 @app.get("/api/cases/{case_id}/report")

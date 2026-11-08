@@ -22,6 +22,16 @@ ControlRoom is an incident-response workspace for financial control exceptions. 
 6. **Proposes actions** from a fixed catalogue. A person approves or rejects each one. There is no payment action.
 7. **Verifies remediation.** The case closes only when code-run closure checks pass, or a named person overrides with a written reason. The closing report is Ed25519-signed and stored in Vultr Object Storage.
 
+## What a reviewer sees
+
+- **Overview** answers the seven questions first: what happened, why it was raised (with the $50,000 limit, the 90 to 100% band and the grouping rule), how much is affected (pending, on hold, already paid, confirmed loss: none), what the evidence shows, the competing explanations and unknowns, and the next step with its owner.
+- **Timeline** is built by code from ERP records, documents and the audit log; every line names its source.
+- **Evidence drawer**: every ID on the page (evidence, control result, link, hypothesis, record, document) opens its source in place.
+- **Action lifecycle**: Proposed → Approved or Rejected → Executed (simulated ERP) or Task done → Verified by a closure check. A recommendation is never shown as a result.
+- **Roles**: demo personas (AP Operations Lead, Finance Director, Internal Audit, Procurement, Warehouse), checked by the API. Only the Finance Director approves, closes or overrides; a wrong persona is refused and the refusal is logged.
+- **Agent detail**: each agent run records its run ID, model, prompt version, input, tool calls, validated output, duration and errors.
+- **Export incident record** at any stage: state, decisions, timeline and every event as JSON.
+
 ## The demo scenario
 
 The weekly payment run (`RUN-1110`, $379,387, 18 payments) releases in 33 hours. A deterministic scan opens two incidents:
@@ -95,7 +105,7 @@ flowchart TD
 | **Managed PostgreSQL** (hobbyist plan, Seattle) | ERP records, per-case ERP changes, cases, the event log and **LangGraph checkpoints**: an approval waits durably and survives an API restart |
 | **Object Storage** (`sjc1.vultrobjects.com`) | The 56 source documents (invoice and receipt PDFs, emails) that agents read and the UI links to, plus signed closing reports |
 
-A full INC-0412 run makes about 50 to 60 model calls and costs about $0.06.
+A full INC-0412 run makes about 50 to 60 model calls and costs $0.06 to $0.08, shown live per incident.
 
 ## Run it
 
@@ -103,11 +113,12 @@ A full INC-0412 run makes about 50 to 60 model calls and costs about $0.06.
 python -m venv .venv && .venv/Scripts/pip install -r backend/requirements.txt   # or .venv/bin/pip
 python scripts/provision.py            # creates Managed PostgreSQL + Object Storage, writes .secrets/controlroom.env
 cd backend && python -m app.seed       # loads Northstar into Postgres and uploads documents
-python -m pytest -q tests              # deterministic engine tests
+python -m pytest -q tests              # rules engine and read-model tests
 uvicorn app.api:app --port 8100        # needs .secrets/controlroom.env values and VULTR_INFERENCE_API_KEY in the environment
 cd ../frontend && npm install && npm run dev
 bash scripts/deploy.sh                 # deploy to the VM
 python scripts/run_live.py INC-0413 --approve   # drive an incident through the public API
+python scripts/live_full.py                       # full INC-0412 lifecycle, including permission refusals
 ```
 
 ## Trust boundaries
