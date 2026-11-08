@@ -2,7 +2,13 @@
 
 **Follow every dollar before it leaves.** AI agents that investigate financial control incidents, from alert to verified resolution.
 
-Live demo: https://controlroom.137-220-32-178.sslip.io · Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounting)
+Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounting)
+
+| Link | What you'll find |
+|---|---|
+| [Landing page and live money map](https://controlroom.137-220-32-178.sslip.io) | Every supplier due in the next payment run, with the two incidents highlighted. Click a red supplier, or **Run the live demo** for a guided investigation |
+| [Incidents (the app)](https://controlroom.137-220-32-178.sslip.io/?view=incidents) | The inbox: severity, pattern, owner and every investigation run |
+| [API docs](https://controlroom.137-220-32-178.sslip.io/api/docs) | Every endpoint, including `/api/network` (the money map) and `/api/cases/{id}/export` |
 
 > All data in the demo is synthetic. Northstar Manufacturing Group, its people, suppliers, bank tokens and records are fictional. Follow the Money cannot pay anyone or send any message.
 
