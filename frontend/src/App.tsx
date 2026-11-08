@@ -23,7 +23,7 @@ function TopBar() {
   return (
     <header className="topbar">
       <a className="brand" href="/">
-        <Mark />
+        <Mark light />
         Follow the Money
       </a>
       <span className="tenant">Northstar Manufacturing Group · Finance Control</span>

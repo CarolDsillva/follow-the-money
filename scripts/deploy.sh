@@ -33,4 +33,4 @@ caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1
 for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8100/api/health >/dev/null 2>&1 && break; sleep 2; done
 curl -fsS http://127.0.0.1:8100/api/health; echo
 REMOTE
-echo "https://controlroom.137-220-32-178.sslip.io"
+echo "https://followthemoney.137-220-32-178.sslip.io"

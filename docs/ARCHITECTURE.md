@@ -26,7 +26,7 @@ flowchart LR
   user([Finance reviewer / judge]) -->|HTTPS| caddy
 
   subgraph VM["Vultr Cloud Compute VM · Seattle · vc2-4c-8gb (existing)"]
-    caddy[Caddy TLS<br/>controlroom.137-220-32-178.sslip.io]
+    caddy[Caddy TLS<br/>followthemoney.137-220-32-178.sslip.io]
     ui[React UI<br/>static build]
     api[FastAPI<br/>cases, approvals, SSE]
     orch[LangGraph orchestrator<br/>8 agent nodes, interrupts]

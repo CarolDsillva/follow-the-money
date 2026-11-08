@@ -1,4 +1,4 @@
-controlroom.137-220-32-178.sslip.io {
+followthemoney.137-220-32-178.sslip.io {
 	encode gzip
 	header {
 		X-Content-Type-Options nosniff
@@ -19,4 +19,10 @@ controlroom.137-220-32-178.sslip.io {
 		try_files {path} /index.html
 		file_server
 	}
+}
+
+
+# The old address keeps working: it sends people to the new one.
+controlroom.137-220-32-178.sslip.io {
+	redir https://followthemoney.137-220-32-178.sslip.io{uri} permanent
 }

@@ -7,7 +7,7 @@ import sys
 import time
 import urllib.request
 
-BASE = "https://controlroom.137-220-32-178.sslip.io/api"
+BASE = "https://followthemoney.137-220-32-178.sslip.io/api"
 
 
 def call(method, path, body=None):
