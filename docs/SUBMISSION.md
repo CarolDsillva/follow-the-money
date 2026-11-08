@@ -59,7 +59,7 @@ Vultr Cloud Compute · Vultr Serverless Inference (glm-5.3, qwen3.8-flash-next, 
 | Field | Value |
 |---|---|
 | Live app | https://followthemoney.137-220-32-178.sslip.io |
-| Source code | https://github.com/CarolDsillva/follow-the-money *(after you create it)* |
+| Source code | https://github.com/CarolDsillva/follow-the-money |
 | Slides | Export the "Follow the Money" deck as PDF and upload it |
 | Video | Your recording (3 to 5 minutes) |
 | Cover image | `docs/cover.png` (1920×1080) |

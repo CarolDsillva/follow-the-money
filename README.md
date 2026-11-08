@@ -8,6 +8,7 @@ Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounti
 |---|---|
 | [Landing page and live money map](https://followthemoney.137-220-32-178.sslip.io) | Every supplier due in the next payment run, with the two incidents highlighted. Click a red supplier, or **Run the live demo** for a guided investigation |
 | [Incidents (the app)](https://followthemoney.137-220-32-178.sslip.io/?view=incidents) | The inbox: severity, pattern, owner and every investigation run |
+| [Source code](https://github.com/CarolDsillva/follow-the-money) | This repository: backend, agents, rules engine, frontend, deploy scripts and tests |
 | [API docs](https://followthemoney.137-220-32-178.sslip.io/api/docs) | Every endpoint, including `/api/network` (the money map) and `/api/cases/{id}/export` |
 
 ![The live money map: every supplier due in the next payment run, incidents in red](docs/screenshots/money-map.png)
