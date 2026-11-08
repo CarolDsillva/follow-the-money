@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from app import agents, entity_graph, northstar, rules, views
+from app import agents, entity_graph, northstar, rules, scan_upload, views
 from app.graph import Engine
 from app.llm import models_for
 from app.store import Store, now
@@ -93,6 +93,30 @@ def supplier_view(supplier_id: str):
     changes = world.find("supplier_change", supplier_id=supplier_id)
     return {"supplier": s, "invoices": invs, "payments": pays, "links": links, "incidents": incidents, "changes": changes,
             "in_run": sum(p["amount"] for p in pays if p["run_id"] == world.run["id"]), "run": world.run}
+
+
+class ScanRequest(BaseModel):
+    suppliers: list[dict]
+    invoices: list[dict]
+    limit: float = Field(50_000, gt=0, le=10_000_000)
+
+
+@app.post("/api/scan")
+def scan_own_data(body: ScanRequest, request: Request):
+    """Deterministic scan of uploaded data. No model call; nothing is stored."""
+    try:
+        return scan_upload.scan(body.suppliers, body.invoices, body.limit)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+
+
+@app.get("/api/scan/sample/{which}")
+def scan_sample(which: str):
+    sup, inv = scan_upload.sample_csv(store.world(docs=False))
+    if which not in ("suppliers.csv", "invoices.csv"):
+        raise HTTPException(404, "No such sample")
+    return Response(sup if which == "suppliers.csv" else inv, media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="northstar-{which}"'})
 
 
 @app.get("/api/network")

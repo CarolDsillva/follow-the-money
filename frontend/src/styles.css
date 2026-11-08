@@ -430,3 +430,9 @@ a { color: #2563eb; }
 .seg button.on { background: #0b1d3a; color: #ffffff; }
 
 .memo-btn { margin-top: 10px; display: inline-block; }
+
+.scanform { display: grid; grid-template-columns: 1fr 1fr 180px auto; gap: 18px; align-items: end; }
+.scanform label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: #0b1d3a; }
+.scanform input[type=file] { font-size: 12.5px; }
+.scanbtns { display: flex; gap: 8px; }
+.scan-nums { margin: 0 0 18px; }

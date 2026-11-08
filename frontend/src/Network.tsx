@@ -52,8 +52,8 @@ function neighbours(g: Graph, ids: Set<string>, hops: number, skipHubs = true) {
 
 export type Focus = { ids: string[]; caption: string; agent: string } | null;
 
-export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, compact = false, focus = null, refreshKey = 0 }:
-  { caseId?: string; seeds: string[]; hops?: number; onOpenSupplier?: (id: string) => void; compact?: boolean; focus?: Focus; refreshKey?: number }) {
+export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, compact = false, focus = null, refreshKey = 0, data }:
+  { caseId?: string; seeds: string[]; hops?: number; onOpenSupplier?: (id: string) => void; compact?: boolean; focus?: Focus; refreshKey?: number; data?: Graph }) {
   const box = useRef<HTMLDivElement>(null);
   const cy = useRef<Core | null>(null);
   const [g, setG] = useState<Graph | null>(null);
@@ -69,16 +69,16 @@ export function NetworkExplorer({ caseId = "", seeds, hops = 2, onOpenSupplier, 
   const seedKey = seeds.join(",");
 
   useEffect(() => {
-    get<Graph>(`/api/entity-graph${caseId ? `?case=${caseId}` : ""}`).then((gr) => {
+    (data ? Promise.resolve(data) : get<Graph>(`/api/entity-graph${caseId ? `?case=${caseId}` : ""}`)).then((gr) => {
       setG(gr);
       setVisible(neighbours(gr, new Set(seeds), hops));
       const max = Math.max(0, ...gr.edges.map((e) => e.amount ?? 0));
       setBounds([0, Math.ceil(max / 1000) * 1000]);
     });
-  }, [caseId, seedKey, hops]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [caseId, seedKey, hops, data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!refreshKey) return;
+    if (!refreshKey || data) return;
     get<Graph>(`/api/entity-graph${caseId ? `?case=${caseId}` : ""}`).then((gr) => setG(gr));
   }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 

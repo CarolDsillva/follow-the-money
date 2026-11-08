@@ -54,6 +54,7 @@ export function Landing() {
             <a href="#cap">What it finds</a>
             <a href="#how">How it works</a>
             <a href="#vultr">Built on Vultr</a>
+            <a href="/?view=scan">Scan your data</a>
           </nav>
           <a className="fh-signin" href="/?view=incidents">Open the app <span>→</span></a>
         </header>

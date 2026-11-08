@@ -48,6 +48,7 @@ Follow the Money is an incident-response workspace for financial control excepti
 - **Roles**: demo personas (AP Operations Lead, Finance Director, Internal Audit, Procurement, Warehouse), checked by the API. Only the Finance Director approves, closes or overrides; a wrong persona is refused and the refusal is logged.
 - **Agent detail**: each agent run records its run ID, model, prompt version, input, tool calls, validated output, duration and errors.
 - **Decision memo** (`/?memo=<incident>`): one printable page for the Finance Director with the recommendation, the money table, labelled evidence, the actions being approved, closure checks and a sign-off block.
+- **Scan your own data** (`/?view=scan`): upload a suppliers CSV and an invoices CSV (or use the Northstar sample) and the deterministic rules find shared identifiers, near-limit clusters and possible split purchases, shown in the network explorer. No AI runs on uploaded data and nothing is stored.
 - **Inbox** shows the runs you started plus two finished examples by default; **All runs** shows every visitor's.
 - **Export incident record** at any stage: state, decisions, timeline and every event as JSON.
 

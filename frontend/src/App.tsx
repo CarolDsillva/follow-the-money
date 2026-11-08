@@ -5,6 +5,7 @@ import { PersonaProvider, PersonaSwitch } from "./ctx";
 import { Landing, Mark, myRuns, startDemo } from "./Landing";
 import { SupplierPage } from "./Supplier";
 import { Memo } from "./Memo";
+import { ScanPage } from "./Scan";
 
 export function App() {
   const params = new URLSearchParams(location.search);
@@ -12,12 +13,13 @@ export function App() {
   const supplierId = params.get("supplier");
   const memoId = params.get("memo");
   if (memoId) return <Memo id={memoId} />;
-  if (!caseId && !supplierId && params.get("view") !== "incidents") return <Landing />;
+  const view = params.get("view");
+  if (!caseId && !supplierId && view !== "incidents" && view !== "scan") return <Landing />;
   return (
     <PersonaProvider><div className="shell">
       <TopBar />
       <div className="synthetic">Demo workspace · synthetic data for the fictional Northstar Manufacturing Group. Nothing here can pay anyone or contact a supplier.</div>
-      {caseId ? <CaseView id={caseId} /> : supplierId ? <SupplierPage id={supplierId} /> : <Inbox />}
+      {caseId ? <CaseView id={caseId} /> : supplierId ? <SupplierPage id={supplierId} /> : view === "scan" ? <ScanPage /> : <Inbox />}
     </div></PersonaProvider>
   );
 }
@@ -32,6 +34,7 @@ function TopBar() {
       <span className="tenant">Northstar Manufacturing Group · Finance Control</span>
       <nav>
         <a href="/?view=incidents">Incidents</a>
+        <a href="/?view=scan">Scan your data</a>
         <a href="/#how">How it works</a>
         <a href="/api/docs" target="_blank" rel="noreferrer">API</a>
       </nav>
