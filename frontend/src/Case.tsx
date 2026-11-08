@@ -272,8 +272,10 @@ function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
       if (e.type === "exposure") { m["Exposure engine"].state = "done"; }
     }
     if (c.status === "error") for (const k of Object.keys(m)) if (m[k].state === "working") m[k].state = "failed";
+    const va = m["Verification Agent"];
+    if (c.status.startsWith("closed") && va.state === "idle") { va.state = "skipped"; va.last = "Not run: closed on the code checks alone"; }
     return m;
-  }, [events]);
+  }, [events, c.status]);
   const controls = c.state.controls ?? [];
   const trace = events.filter((e) => e.type !== "llm_call");
   const sel = open ? byAgent[open] : null;
@@ -288,7 +290,7 @@ function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
               const s = byAgent[a.name];
               return (
                 <button key={a.name} className={`agent st-${s.state} ${open === a.name ? "agent-open" : ""}`} onClick={() => setOpen(open === a.name ? null : a.name)}>
-                  <div className="agent-top"><h3>{a.name}</h3><span className="agent-state">{s.state === "working" ? "Running" : s.state === "done" ? "Completed" : s.state === "failed" ? "Failed" : "Queued"}</span></div>
+                  <div className="agent-top"><h3>{a.name}</h3><span className="agent-state">{s.state === "working" ? "Running" : s.state === "done" ? "Completed" : s.state === "failed" ? "Failed" : s.state === "skipped" ? "Skipped" : "Queued"}</span></div>
                   <p className="job">{a.job}</p>
                   <p className="agent-last">{s.state === "idle" ? `Waits for ${a.after}` : s.last || " "}</p>
                   <p className="agent-meta">{a.name === "Exposure engine" ? "code, no model" : `${s.model ?? ""} · ${s.tools} tool calls · ${s.calls} model calls${s.cost ? ` · $${s.cost.toFixed(4)}` : ""}${s.done ? ` · ${s.done.data.seconds}s` : ""}`}</p>

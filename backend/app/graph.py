@@ -142,6 +142,8 @@ class Engine:
         return checks
 
     def _close(self, ctx: agents.Ctx, command: dict):
+        if not (ctx.state().get("verification") or {}).get("agent"):
+            self._verify(ctx)  # the Verification Agent always reviews before a close
         st = ctx.state()
         checks = rules.closure_checks(ctx.world, {**ctx.case, **st, "invoice_ids": ctx.case["invoice_ids"]})
         ok = rules.may_close(checks)
