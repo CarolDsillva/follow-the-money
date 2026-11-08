@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { costText, get, hoursUntil, STATUS, usd, type Overview } from "./api";
 import { CaseView } from "./Case";
 import { PersonaProvider, PersonaSwitch } from "./ctx";
-import { Landing, Mark, startDemo } from "./Landing";
+import { Landing, Mark, myRuns, startDemo } from "./Landing";
 import { SupplierPage } from "./Supplier";
+import { Memo } from "./Memo";
 
 export function App() {
   const params = new URLSearchParams(location.search);
   const caseId = params.get("case");
   const supplierId = params.get("supplier");
+  const memoId = params.get("memo");
+  if (memoId) return <Memo id={memoId} />;
   if (!caseId && !supplierId && params.get("view") !== "incidents") return <Landing />;
   return (
     <PersonaProvider><div className="shell">
@@ -48,6 +51,7 @@ function Inbox() {
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [scope, setScope] = useState<"mine" | "all">("mine");
 
   useEffect(() => {
     const load = () => get<Overview>("/api/overview").then(setOv).catch((e) => setError(e.message));
@@ -70,10 +74,13 @@ function Inbox() {
   const run = ov.payment_run;
   const hours = hoursUntil(ov.world_now, run.scheduled_for);
   const templates = ov.cases.filter((c) => c.id === c.template).sort((a, b) => a.id.localeCompare(b.id));
+  const mine = new Set(myRuns());
+  const featured = new Set(ov.featured ?? []);
   const runs = ov.cases.filter((c) => c.id !== c.template)
+    .filter((c) => scope === "all" || mine.has(c.id) || featured.has(c.id))
     .filter((c) => statusFilter === "all" || c.status === statusFilter)
     .filter((c) => !q || `${c.id} ${c.summary ?? ""} ${c.title}`.toLowerCase().includes(q.toLowerCase()));
-  const latest = (t: string) => ov.cases.find((c) => c.template === t && c.id !== t);
+  const latest = (t: string) => ov.cases.find((c) => c.template === t && mine.has(c.id)) ?? ov.cases.find((c) => c.template === t && featured.has(c.id));
   const inIncidents = templates.reduce((a, c) => a + c.potential_exposure, 0);
 
   return (
@@ -131,9 +138,14 @@ function Inbox() {
         <p className="fine">Statuses: <b>New</b> opened by the scan · <b>Investigating</b> agents running · <b>Awaiting approval</b> a person must decide · <b>Remediation</b> teams fixing, verification pending · <b>Closed · verified</b> all checks passed · <b>Closed · override</b> closed by a named person with a reason.</p>
       </section>
 
-      {runs.length > 0 && (
+      {(
         <section className="panel">
-          <div className="panel-head"><h2>Investigation runs</h2><span className="muted">Every run, with its model cost.</span>
+          <div className="panel-head"><h2>Investigation runs</h2>
+            <span className="muted">{scope === "mine" ? "Runs you started in this browser, plus finished examples." : "Every run on this server, including other visitors'."}</span>
+            <div className="seg">
+              <button className={scope === "mine" ? "on" : ""} onClick={() => setScope("mine")}>Yours and examples</button>
+              <button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>All runs</button>
+            </div>
             <div className="filters">
               <input placeholder="Search runs" value={q} onChange={(e) => setQ(e.target.value)} />
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -146,7 +158,7 @@ function Inbox() {
             <tbody>
               {runs.slice(0, 15).map((c) => (
                 <tr key={c.id}>
-                  <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a></td>
+                  <td><a href={`/?case=${c.id}`} className="caseid">{c.id}</a>{featured.has(c.id) && <div className="sub">Example</div>}{mine.has(c.id) && <div className="sub">Yours</div>}</td>
                   <td className="trig">{c.summary ?? c.title}</td>
                   <td>{c.severity && <span className={`sev sev-${c.severity.level}`} title={c.severity.reason}>{c.severity.level}</span>}</td>
                   <td><Pill status={c.status} /></td>
@@ -156,6 +168,7 @@ function Inbox() {
               ))}
             </tbody>
           </table>
+          {runs.length === 0 && <p className="pending">No runs here yet. Click <b>Start investigation</b> above; your runs appear here.</p>}
         </section>
       )}
 

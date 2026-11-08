@@ -424,3 +424,9 @@ a { color: #2563eb; }
 .nx-hist .bars span { background: #38bdf8; }
 .split-a { background: #fb7185; }
 .runcard b.amber { color: #fda4af; }
+
+.seg { display: inline-flex; margin-left: 12px; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; background: #ffffff; color: #475569; padding: 6px 12px; font-size: 12.5px; }
+.seg button.on { background: #0b1d3a; color: #ffffff; }
+
+.memo-btn { margin-top: 10px; display: inline-block; }

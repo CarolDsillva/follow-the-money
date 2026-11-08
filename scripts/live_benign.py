@@ -19,7 +19,7 @@ c = wait(cid, lambda c: not c["busy"], "close attempted")
 print("  status after close:", c["status"], [(x["test"], x["status"]) for x in (c["state"].get("verification") or {}).get("checks", [])])
 for a in c["state"]["actions"]:
     if a["status"] == "task_open":
-        persona = {"Ana Petrov": "warehouse", "Grace Liu": "procurement", "Elena Brandt": "ap_lead"}[a["owner"].split(",")[0]]
+        persona = {"Ana Petrov": "warehouse", "Grace Liu": "procurement", "Elena Brandt": "ap_lead", "Rafael Moreno": "internal_audit"}[a["owner"].split(",")[0]]
         print("  wrong owner:", call("POST", f"/cases/{cid}/tasks/{a['id']}/complete", {"persona": "ap_lead" if persona != "ap_lead" else "warehouse", "note": "trying someone else's task"}, expect=403)["detail"])
         call("POST", f"/cases/{cid}/tasks/{a['id']}/complete", {"persona": persona, "note": "All three phases received and inspected; GRN-631/633/635 match."}, expect=200)
 call("POST", f"/cases/{cid}/close", {"persona": "finance_director", "override_reason": ""}, expect=202)

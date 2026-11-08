@@ -2,8 +2,17 @@ import { useState } from "react";
 import { post } from "./api";
 import { MoneyMap, useNetwork } from "./MoneyMap";
 
+export function myRuns(): string[] {
+  try { return JSON.parse(localStorage.getItem("myRuns") ?? "[]"); } catch { return []; }
+}
+
+export function rememberRun(id: string) {
+  localStorage.setItem("myRuns", JSON.stringify([id, ...myRuns().filter((x) => x !== id)].slice(0, 50)));
+}
+
 export async function startDemo(template = "INC-0412") {
   const { id } = await post<{ id: string }>(`/api/cases/${template}/rerun`);
+  rememberRun(id);
   await post(`/api/cases/${id}/investigate`);
   localStorage.setItem("persona", "ap_lead");
   location.href = `/?case=${id}&guide=1`;

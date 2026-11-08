@@ -132,6 +132,7 @@ def overview():
             "approval_limit": world.limit, "currency": world.meta["currency"],
             "counts": {k: len(v) for k, v in world.records.items()}, "documents": len(store.list_documents()),
             "cases": [_inbox_row(c) for c in store.cases()],
+            "featured": (store.q("SELECT value FROM meta WHERE key = 'featured'") or [{"value": []}])[0]["value"],
             "infrastructure": {"compute": "Vultr Cloud Compute, Seattle", "database": "Vultr Managed PostgreSQL, Seattle",
                                "object_storage": store.s3_endpoint.replace("https://", "") + " (Vultr Object Storage)",
                                "inference": "Vultr Serverless Inference", "models": {"specialists": models_for("evidence")[0],

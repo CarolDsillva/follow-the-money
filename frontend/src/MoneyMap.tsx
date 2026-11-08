@@ -31,13 +31,19 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
     const inc = net.suppliers.filter((s) => s.incident);
     const paid = net.suppliers.filter((s) => !s.incident && s.in_run > 0);
     const idle = net.suppliers.filter((s) => !s.incident && s.in_run === 0);
-    const out: (Sup & { x: number; y: number; o: number })[] = [];
+    const out: (Sup & { x: number; y: number; o: number; label?: boolean })[] = [];
     const linked = inc.filter((s) => s.incident!.id === "INC-0412");
     const single = inc.filter((s) => s.incident!.id !== "INC-0412");
-    linked.forEach((s, i) => out.push({ ...s, ...at(0, -128 + i * 38), o: 0 }));
-    single.forEach((s, i) => out.push({ ...s, ...at(0, 70 + i * 30), o: 0 }));
-    paid.forEach((s, i) => out.push({ ...s, ...at(1, -48 + i * (96 / Math.max(1, paid.length - 1))), o: 1 }));
-    idle.forEach((s, i) => out.push({ ...s, ...at(2, -140 + i * (280 / Math.max(1, idle.length - 1))), o: 2 }));
+    linked.forEach((s, i) => out.push({ ...s, ...at(0, -128 + i * 38), o: 0, label: true }));
+    single.forEach((s, i) => out.push({ ...s, ...at(0, 70 + i * 30), o: 0, label: true }));
+    const top = [...paid].sort((a, b) => b.in_run - a.in_run);
+    const big = top.slice(0, 6), rest = top.slice(6);
+    big.forEach((s, i) => out.push({ ...s, ...at(1, -48 + i * (96 / Math.max(1, big.length - 1))), o: 1, label: true } as never));
+    rest.forEach((s, i) => {
+      const a = -150 + i * (300 / Math.max(1, rest.length - 1));
+      out.push({ ...s, ...at(2, Math.abs(a) < 12 ? a + 14 : a), o: 2 });
+    });
+    idle.forEach((s, i) => out.push({ ...s, ...at(2, -165 + i * (330 / Math.max(1, idle.length - 1)) + 4), o: 2 }));
     return out;
   }, [net]);
 
@@ -69,8 +75,8 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
         const w = 1.2 + (9 * p.in_run) / max;
         return (
           <g key={`f-${p.id}`}>
-            <path d={d} fill="none" stroke={p.incident ? "url(#flowRisk)" : "url(#flow)"} strokeWidth={w} strokeLinecap="round" opacity={p.incident ? 0.95 : 0.6} />
-            <path d={d} fill="none" stroke="#ffffff" strokeWidth={Math.max(1, w / 3)} strokeDasharray="2 14" className="mm-dash" opacity="0.8" />
+            <path d={d} fill="none" stroke={p.incident ? "url(#flowRisk)" : "url(#flow)"} strokeWidth={w} strokeLinecap="round" opacity={p.incident ? 0.95 : p.label ? 0.6 : 0.28} />
+            {(p.incident || p.label) && <path d={d} fill="none" stroke="#ffffff" strokeWidth={Math.max(1, w / 3)} strokeDasharray="2 14" className="mm-dash" opacity="0.8" />}
           </g>
         );
       })}
@@ -94,14 +100,14 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
       )}
 
       {placed.map((p) => {
-        const r = p.incident ? 9 : p.in_run > 0 ? 6 : 4;
+        const r = p.incident ? 9 : p.label ? 6 : p.in_run > 0 ? 4 : 3;
         return (
           <g key={p.id} className={`mm-node ${p.incident ? "risk" : p.in_run > 0 ? "paid" : "idle"}`}
             onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
             onClick={() => (p.incident ? onPick(p.incident.id) : (location.href = `/?supplier=${p.id}`))} style={{ cursor: "pointer" }}>
             {p.incident && <circle cx={p.x} cy={p.y} r="30" fill="url(#risk)" className="mm-pulse" />}
             <circle cx={p.x} cy={p.y} r={r} />
-            {(p.incident || p.in_run > 0) && (() => {
+            {p.label && (() => {
               const left = p.x > 1150;
               const x = left ? p.x - 14 : p.x + 14;
               return (

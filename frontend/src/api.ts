@@ -36,7 +36,7 @@ export type CaseFull = CaseRow & {
 };
 export type Overview = {
   world_now: string; payment_run: { id: string; scheduled_for: string; name: string; payments: number; total: number };
-  approval_limit: number; currency: string; counts: Record<string, number>; documents: number; cases: CaseRow[];
+  approval_limit: number; currency: string; counts: Record<string, number>; documents: number; cases: CaseRow[]; featured?: string[];
   infrastructure: { compute: string; database: string; object_storage: string; inference: string; models: { specialists: string; challenge: string; backup: string } };
 };
 export type Graph = { nodes: { id: string; kind: string; label: string; sub: string; col: number; flag: string | null }[]; edges: { from: string; to: string; label: string; kind: string; link_id?: string; ref?: string }[]; investigated: boolean };

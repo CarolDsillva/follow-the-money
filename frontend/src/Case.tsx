@@ -3,6 +3,7 @@ import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type
 import { fmt, Pill } from "./App";
 import { Cite, DrawerProvider, usePersona } from "./ctx";
 import { NetworkExplorer, type Focus } from "./Network";
+import { startDemo } from "./Landing";
 import { CASE_TOUR, Tour } from "./Tour";
 
 const AGENTS = [
@@ -117,6 +118,7 @@ function CaseInner({ id }: { id: string }) {
             {c.busy && <span className="live"><i />{runningAgent(events) ?? "Working"}</span>}</div>
           <p className="casetitle">{c.state.briefing?.headline ?? c.title}</p>
           <p className="fine">{c.trigger} · Owner: Elena Brandt, AP Operations Lead · <a href={`/api/cases/${c.id}/export`}>Export incident record</a></p>
+          <a className="button memo-btn" href={`/?memo=${c.id}`} target="_blank" rel="noreferrer">Decision memo</a>
         </div>
         <div className="kpis" data-tour="kpis">
           <div><span>Potential exposure</span><strong className="money">{usd(ex?.total_in_run ?? c.potential_exposure)}</strong>
@@ -175,9 +177,7 @@ function StartBar({ c, onStarted }: { c: CaseFull; onStarted: () => void }) {
         setBusy(true); setErr(null);
         try {
           if (c.id === c.template) {
-            const { id } = await post<{ id: string }>(`/api/cases/${c.id}/rerun`);
-            await post(`/api/cases/${id}/investigate`);
-            location.href = `/?case=${id}`;
+            await startDemo(c.id);
           } else { await post(`/api/cases/${c.id}/investigate`); onStarted(); }
         } catch (e) { setErr((e as Error).message); setBusy(false); }
       }}>{busy ? "Starting" : "Start investigation"}</button>
@@ -640,7 +640,7 @@ function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; even
             <ul className="actions">
               {actions.filter((a) => a.decision === "approved").map((a) => (
                 <li key={a.id} className="act"><b>{a.label}</b> <span className="fine">· {a.owner}</span><Lifecycle stages={a.lifecycle} />
-                  {a.status === "task_open" && !(isA && ["supplier_callback", "due_diligence", "receiving_confirmation", "escalate_to_audit"].includes(a.kind)) && (
+                  {a.status === "task_open" && a.kind !== "escalate_to_audit" && !(isA && ["supplier_callback", "due_diligence", "receiving_confirmation"].includes(a.kind)) && (
                     <TaskDone caseId={c.id} actionId={a.id} owner={a.owner} onDone={onDone} />
                   )}
                 </li>
@@ -652,8 +652,12 @@ function VerifyTab({ c, events, actions, criteria, onDone }: { c: CaseFull; even
                   onClick={(persona) => !docs.includes("DOC-CB-301") && act("cb", () => post(`/api/cases/${c.id}/remediation`, { kind: "callback", persona }))} />
                 <PersonaAction perm="remediation:receiving" className="" busy={busy === "rc"} label={docs.includes("DOC-RC-7104") ? "✓ Receiving confirmed" : "Warehouse and AP: confirm receipts"}
                   onClick={(persona) => !docs.includes("DOC-RC-7104") && act("rc", () => post(`/api/cases/${c.id}/remediation`, { kind: "receiving", persona }))} />
-                {audit && <PersonaAction perm="audit_ack" className="" busy={busy === "au"} label={audit.acknowledged_by ? "✓ Audit acknowledged" : "Internal Audit: acknowledge"}
-                  onClick={(persona) => !audit.acknowledged_by && act("au", () => post(`/api/cases/${c.id}/audit-ack`, { persona }))} />}
+              </div>
+            )}
+            {audit && (
+              <div className="simbtns">
+                <PersonaAction perm="audit_ack" className="" busy={busy === "au"} label={audit.acknowledged_by ? "✓ Audit acknowledged" : "Internal Audit: acknowledge"}
+                  onClick={(persona) => !audit.acknowledged_by && act("au", () => post(`/api/cases/${c.id}/audit-ack`, { persona }))} />
               </div>
             )}
             <p className="fine">Simulation: switch persona at the top right to act as Procurement, the Warehouse or Internal Audit. Each button checks the role on the server.</p>

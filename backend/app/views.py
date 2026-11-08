@@ -103,7 +103,7 @@ def overview(case: dict, state: dict, events: list[dict], world: rules.World) ->
         "how_much": {"potential_exposure": ex["total_in_run"], "invoice_total": ex["invoice_total"], "invoice_count": ex.get("invoice_count", len(case["invoice_ids"])),
                      "unsupported_by_receipts": ex["unsupported_by_receipts"], "to_unverified_changed_account": ex["to_unverified_changed_account"],
                      "pending_payment": ex.get("pending_payment"), "on_hold": ex.get("on_hold"), "already_paid": ex.get("already_paid"),
-                     "confirmed_loss": None, "label": "Potential exposure, not a confirmed loss"},
+                     "confirmed_loss": None, "label": "Potential exposure, not a confirmed loss", "lines": ex["lines"]},
         "evidence": findings[:6],
         "competing": [{"id": h["id"], "kind": h["kind"], "status": h["status"], "statement": h["statement"]} for h in hyps],
         "unknowns": unknowns[:6] or (["Investigation not started"] if status == "new" else []),

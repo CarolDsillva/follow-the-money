@@ -15,7 +15,7 @@ Record at 1440×900 in Chrome. Start a fresh copy of INC-0412 about 2 minutes be
 | 2:10 | Verification & audit → **Close incident** → red **Close refused** | "Most case tools would let me close this now. Follow the Money refuses: four of five closure checks fail. 'Resolved' isn't a button." |
 | 2:25 | Switch to Grace Liu (Procurement): **callback and due diligence** → **Run verification** | "Procurement calls Ridgeline on the number on file since 2019. Ridgeline never changed its bank details. Verification reruns the controls: three of five pass, and the agent explains what's still missing." |
 | 2:45 | As Ana (Warehouse) confirm receipts, as Rafael (Audit) acknowledge, **Run verification**, as Tom **Close incident** | "Receipts confirmed, the shortfall disputed, audit acknowledges. Five of five. Now it closes." |
-| 3:00 | Green closed panel → open the signed report | "The full case (evidence, decisions, checks and every agent step) is signed and stored in Vultr Object Storage. This incident cost six cents of inference." |
+| 3:00 | Closed panel → open the Decision memo | "The full case (evidence, decisions, checks and every agent step) is signed and stored in Vultr Object Storage. This incident cost six cents of inference." |
 | 3:10 | Inbox → INC-0413 closed as no control failure | "And the look-alike: three near-limit invoices that are fine, because a signed framework agreement covers them. Follow the Money investigates risk; it doesn't accuse." |
 | 3:25 | Close on the tagline | "Follow the Money. From financial alert to verified resolution." |
 

@@ -286,6 +286,8 @@ class Engine:
         if not a or a.get("decision") != "approved" or a.get("status") != "task_open":
             raise KeyError(action_id)
         a.update(status="done", completed_by=by, completed_at=now(), completion_note=note)
+        if a["kind"] == "escalate_to_audit":
+            a["acknowledged_by"] = by
         self.store.merge_state(case_id, {"actions": actions})
         self.store.event(case_id, by, "task_done", f"Completed: {a['label']} ({', '.join(a['target_ids'])}). Note: {note}", {"action_id": action_id})
 

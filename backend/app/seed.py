@@ -87,8 +87,24 @@ def reset(store: Store, upload_docs: bool = True):
             pass
 
 
+def reseed_records(store: Store):
+    """Replace the base ERP records and world settings only. Cases, runs, events and documents stay."""
+    data = northstar.build()
+    with store.pool.connection() as c:
+        c.execute("TRUNCATE erp_records, meta")
+        for kind, rows in data["records"].items():
+            for r in rows:
+                c.execute("INSERT INTO erp_records (id, kind, data) VALUES (%s,%s,%s)", (r["id"], kind, Jsonb(r)))
+        for key in ("world_now", "payment_run", "approval_limit", "currency"):
+            c.execute("INSERT INTO meta (key, value) VALUES (%s,%s)", (key, Jsonb(data[key])))
+
+
 if __name__ == "__main__":
     s = Store.from_env()
+    if "--records-only" in sys.argv:
+        reseed_records(s)
+        print("records:", s.q("select count(*) n from erp_records")[0]["n"], "cases kept:", len(s.cases()))
+        sys.exit(0)
     reset(s, upload_docs="--keep-docs" not in sys.argv)
     print("cases:", [(c["id"], c["title"], float(c["potential_exposure"])) for c in s.cases()])
     print("documents:", len(s.list_documents()))

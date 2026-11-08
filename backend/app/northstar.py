@@ -178,11 +178,63 @@ def build() -> dict:
     chain("SUP-H", "EMP-04", "EMP-07", "2026-10-28T13:15:00Z", "Line 3 retrofit, phase 3 control valves", 1, 45_900.0, 1,
           "2026-11-04", "2026-11-10", pr_id="PR-2063", po_id="PO-7135", inv_id="INV-135", grn_id="GRN-635", approved_at="2026-10-28T14:00:00Z", contract="FA-2026-03")
 
+    # ---------- the rest of the supplier base: ordinary, healthy business ----------
+    # Added after the planted incidents with their own ID ranges, so no existing ID moves.
+    # Nothing here lands at 90-100% of the approval limit, so the scan still opens only A and B.
+    counters.update({"pr": 3000, "po": 8000, "inv": 500, "grn": 1000})
+    firsts = ["Harbor", "Ironwood", "Silverline", "Pinecrest", "Redstone", "Westlake", "Northgate", "Clearwater", "Highland",
+              "Riverbend", "Stonebridge", "Brightline", "Copperfield", "Lakeside", "Summitview", "Eastpoint", "Greenfield",
+              "Bayview", "Timberline", "Coastal", "Fairhaven", "Kingsford", "Maplewood", "Ridgeway", "Sandpoint", "Westbrook",
+              "Glacier", "Horizon", "Larkspur", "Meridian", "Orchard", "Prairie", "Quarry", "Sterling"]
+    seconds = ["Metals", "Hydraulics", "Electrical Supply", "Packaging Co.", "Safety Systems", "Tooling", "Fasteners",
+               "Logistics", "Coatings", "Pneumatics", "Bearings", "Industrial Services", "Chemicals", "Controls",
+               "Filtration", "Plastics", "Abrasives", "Welding Supply"]
+    cities = [("Tacoma", "98402"), ("Seattle", "98108"), ("Kent", "98032"), ("Everett", "98201"), ("Auburn", "98001"),
+              ("Spokane", "99201"), ("Bellevue", "98004"), ("Renton", "98057"), ("Olympia", "98501"), ("Yakima", "98901")]
+    streets = ["Industry Way", "Commerce St", "Rail Ave", "Mill Rd", "Harbor Blvd", "Depot St", "Forge Ln", "Canal Rd"]
+    bulk_items = [("Hydraulic hose assembly", 86.0), ("Safety harness", 142.0), ("Pallet racking beam", 64.5), ("Shrink film roll", 38.0),
+                  ("Servo motor", 1240.0), ("Coolant concentrate 20L", 96.0), ("Bearing kit", 215.0), ("Welding gas cylinder", 74.0),
+                  ("PLC input module", 485.0), ("Filter cartridge", 27.5), ("Steel plate 10mm", 312.0), ("Air compressor service", 960.0)]
+    bulk_ids = []
+    for n in range(34):
+        sid = f"SUP-{chr(65 + n // 26)}{chr(65 + n % 26)}"
+        name = f"{firsts[n]} {seconds[(n * 7) % len(seconds)]}"
+        city, zipc = cities[n % len(cities)]
+        addr = f"{100 + (n * 37) % 900} {streets[n % len(streets)]}, {city} WA {zipc}"
+        if n in (5, 19):  # two more tenants of the Kent business park: a weak, harmless shared address
+            addr = "Pacific Commerce Park, 2200 Industry Dr, Kent WA 98032"
+        created = f"20{14 + n % 11:02d}-{1 + n % 12:02d}-{1 + (n * 3) % 27:02d}"
+        sup(sid, name, created, f"****{5000 + n * 113:04d}", f"+1 425 555 {2000 + n * 29:04d}",
+            "ap@" + firsts[n].lower() + "-" + seconds[(n * 7) % len(seconds)].split()[0].lower().rstrip(".") + ".example", addr)
+        R["supplier"][-1]["bulk"] = True
+        bulk_ids.append(sid)
+    for n in range(150):
+        sid = bulk_ids[(n * 11) % len(bulk_ids)]
+        item, price = bulk_items[n % len(bulk_items)]
+        qty = rng.randint(3, 160)
+        while 0.9 * APPROVAL_LIMIT <= qty * price <= APPROVAL_LIMIT or qty * price > 3 * APPROVAL_LIMIT:
+            qty = max(1, qty // 2)
+        day = 1 + n % 28
+        month = "09" if n % 4 == 0 else "10"
+        approver = "EMP-02" if qty * price > APPROVAL_LIMIT else ["EMP-07", "EMP-05", "EMP-10", "EMP-04"][n % 4]
+        requester = ["EMP-09", "EMP-11", "EMP-10", "EMP-04", "EMP-08"][n % 5]
+        if requester == approver:
+            requester = "EMP-09"
+        received = qty if n % 9 else qty  # healthy suppliers deliver in full
+        inv = chain(sid, requester, approver, f"2026-{month}-{day:02d}T{8 + n % 9:02d}:{(n * 7) % 60:02d}:00Z", item, qty, price,
+                    received, f"2026-{month}-{min(day + 4, 30):02d}", "2026-11-10", pay=(n % 5 in (0, 2, 3)))
+        R["invoice"][-1]["bulk"] = True
+    R["supplier_change"].append({"id": "CHG-305", "supplier_id": "SUP-AH", "field": "bank_account_token", "old_value": "****5791",
+                                 "new_value": "****6120", "changed_at": "2026-10-22T13:40:00Z", "changed_by": "EMP-10",
+                                 "reason": "Supplier letter on headed paper", "callback_verified": True, "callback_note": "phone of record"})
+
     # ---------- documents (stored in Vultr Object Storage) ----------
     def doc(did, kind, title, text, related, trust="internal", fmt="pdf"):
         docs.append({"id": did, "kind": kind, "title": title, "text": text.strip(), "related": related, "trust": trust, "format": fmt})
 
     for inv in R["invoice"]:
+        if inv.get("bulk"):
+            continue  # routine invoices: records only, no PDF needed for the demo
         s = next(x for x in R["supplier"] if x["id"] == inv["supplier_id"])
         line = inv["lines"][0]
         doc(f"DOC-{inv['id']}", "invoice", f"Invoice {inv['id']} from {s['legal_name']}", f"""
