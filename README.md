@@ -21,8 +21,16 @@ Vultr Agent Rush, Challenge 2: Powering the Future of Work (Finance and Accounti
 | **Verified, not clicked**: closure checks retested in code | **Decision memo**: one printable page for the Finance Director |
 | ![Supplier page](docs/screenshots/supplier.png) | ![Scan your own data](docs/screenshots/scan-your-data.png) |
 | **Supplier page**: identifiers, changes and the supplier's network | **Scan your own data**: CSV in, patterns and network out |
+| ![Close refused with a fix for each failing check](docs/screenshots/close-refused.png) | ![How it runs on Vultr](docs/screenshots/architecture.png) |
+| **"Resolved" isn't a button**: a refused close lists each failing check, how to fix it and who can | **Built on Vultr**: VM, Serverless Inference, Managed PostgreSQL and Object Storage |
 
 > All data in the demo is synthetic. Northstar Manufacturing Group, its people, suppliers, bank tokens and records are fictional. Follow the Money cannot pay anyone or send any message.
+
+## In one minute
+
+- **The problem:** controls check one invoice at a time. Three invoices of $47k, $48k and $49k each pass the $50k approval limit, are approved and come from suppliers on file, so $144,000 gets paid. That all three suppliers share one bank account, changed a week before the run, shows up after the money is gone.
+- **The fix:** before the run pays, Follow the Money checks it as a whole. Code flags the pattern, seven AI agents gather the proof and argue the innocent side, code calculates the exposure, a named person approves every action, and the case only closes when code-run checks pass.
+- **On Vultr:** a Cloud Compute VM runs the app and a LangGraph workflow; agents call Vultr Serverless Inference; every step is checkpointed in Vultr Managed PostgreSQL so a run can pause for a human and resume; signed reports go to Vultr Object Storage. A full investigation costs about $0.08.
 
 ## The problem
 
@@ -48,12 +56,12 @@ Follow the Money is an incident-response workspace for financial control excepti
 
 ## What a reviewer sees
 
-- **Landing page with a live money map**: every supplier due in the next payment run, flows sized by amount, linked suppliers and incidents highlighted in red. Click an incident to open it. **Run the live demo** starts a fresh investigation with a step-by-step guide.
+- **Landing page with a live money map**: every supplier due in the next payment run, flows sized by amount, linked suppliers and incidents highlighted in red, and a live strip with payments checked, money flagged and the number of payments the AI can release (zero). Click an incident to open it. **Run the live demo** starts a fresh investigation with a step-by-step guide.
 
 - **Overview** answers the seven questions first: what happened, why it was raised (with the $50,000 limit, the 90 to 100% band and the grouping rule), how much is affected (pending, on hold, already paid, confirmed loss: none), what the evidence shows, the competing explanations and unknowns, and the next step with its owner.
 - **Network graph** (incident and supplier pages): an interactive entity graph of suppliers, bank accounts, phones, addresses, people, requests, invoices, payments, master-data changes and emails. Drag, zoom, search, double-click to expand, filter by node and edge type and by amount, and press **Follow the money** to light up where payments go. Built by code at `/api/entity-graph`.
 - **Supplier pages** (`/?supplier=SUP-B`): identifiers, links, changes, invoices and the supplier's network.
-- **Product tour**: **Run the live demo** opens a spotlight tour of the incident page, then the guided-demo strip walks through approval, refusal, remediation and verification.
+- **Product tour**: **Run the live demo** opens a short spotlight tour of the incident page. The highlight follows the page as you scroll, and the tour closes with ×, Esc or Skip.
 - **Timeline** is built by code from ERP records, documents and the audit log; every line names its source.
 - **Evidence drawer**: every ID on the page (evidence, control result, link, hypothesis, record, document) opens its source in place.
 - **Action lifecycle**: Proposed → Approved or Rejected → Executed (simulated ERP) or Task done → Verified by a closure check. A recommendation is never shown as a result.
@@ -61,6 +69,9 @@ Follow the Money is an incident-response workspace for financial control excepti
 - **Agent detail**: each agent run records its run ID, model, prompt version, input, tool calls, validated output, duration and errors.
 - **Decision memo** (`/?memo=<incident>`): one printable page for the Finance Director with the recommendation, the money table, labelled evidence, the actions being approved, closure checks and a sign-off block.
 - **Scan your own data** (`/?view=scan`): upload a suppliers CSV and an invoices CSV (or use the Northstar sample) and the deterministic rules find shared identifiers, near-limit clusters and possible split purchases, shown in the network explorer. No AI runs on uploaded data and nothing is stored.
+- **Guided strip**: tells the current persona what to do next, with one button that switches tab and scrolls to the right section (**Watch the agents**, **Go to the actions**, **Go to verification**).
+- **A refused close explains itself**: each failing check comes with how to fix it and a button to switch to the person who can. Rejected actions can be reconsidered by the Finance Director, and remediation buttons only unlock once their action is approved.
+- **Locked buttons per role**: actions a persona can't take show who can (for example "Submit decisions · Finance Director only"), and the API refuses them anyway.
 - **Inbox** shows the runs you started plus two finished examples by default; **All runs** shows every visitor's.
 - **Export incident record** at any stage: state, decisions, timeline and every event as JSON.
 
@@ -74,9 +85,10 @@ The fictional Northstar Manufacturing has 50 suppliers, 190 invoices and a weekl
 | **INC-0413** | Three near-limit invoices from one supplier | The look-alike. The Challenge Agent finds framework agreement `FA-2026-03`, code verifies that it covers the suppliers, amounts and approver, and the split-purchase exception is cleared. **No control failure.** |
 
 The INC-0412 lifecycle in the demo:
-- **Close is refused:** 4 of 5 closure checks fail.
-- **After the procurement callback:** 3 of 5 pass, and the Verification Agent explains the receipt shortfall.
-- **After the warehouse confirmation and the Internal Audit acknowledgement:** 5 of 5 pass, and the case closes with a signed report.
+- **Approval:** the Resolution Agent proposes five actions (hold the invoices, ask the warehouse, call the supplier on a known number, new-supplier due diligence, escalate to Internal Audit). Only the Finance Director can submit decisions.
+- **Close is refused** until six checks pass in code: payments contained, bank change called back, three-way match, new-supplier due diligence, every approved task done, and the audit escalation acknowledged. Each failing check says how to fix it.
+- **Remediation:** Procurement, Warehouse and Internal Audit complete their tasks; the Verification Agent reviews the evidence before every close.
+- **Closed:** all six checks pass and an Ed25519-signed report is written to Vultr Object Storage. A Finance Director override is possible but needs a written reason, which goes into the signed report.
 
 Anyone can run either incident from the start. **Investigate a fresh copy** gives each run its own copy of the ERP and documents.
 
@@ -124,7 +136,7 @@ flowchart TD
 | Exposure engine | none | none | Pure function |
 | Challenge Agent | `glm-5.3` | retrieval tools + `run_control_test` | An exemption counts only if code verifies the contract. Citations that don't exist are removed |
 | Resolution Agent | `qwen3.8-flash-next` | none | Only catalogue actions with targets of the right kind. No payment action exists |
-| Verification Agent | `qwen3.8-flash-next` | `read_document`, `get_record`, `run_control_test` | If it recommends closing while checks fail, code keeps the case open |
+| Verification Agent | `qwen3.8-flash-next` | `read_document`, `get_record`, `run_control_test` | Runs before every close. If it recommends closing while checks fail, code keeps the case open |
 
 `qwen3.8-27b` is the backup for every agent. A guard flags instructions found inside untrusted documents and shows them in the trace.
 
@@ -139,18 +151,23 @@ flowchart TD
 
 A full INC-0412 run makes about 50 to 60 model calls and costs $0.06 to $0.08, shown live per incident.
 
+Challenge 2 asks for a Vultr VM backend with web deployment; Serverless Inference is optional and GPUs aren't used. Follow the Money runs on a CPU VM and uses Serverless Inference for every model call.
+
 ## Run it
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r backend/requirements.txt   # or .venv/bin/pip
 python scripts/provision.py            # creates Managed PostgreSQL + Object Storage, writes .secrets/controlroom.env
 cd backend && python -m app.seed       # loads Northstar into Postgres and uploads documents
-python -m pytest -q tests              # rules engine and read-model tests
+python -m pytest -q tests              # 18 tests: rules engine, read models, CSV scan
 uvicorn app.api:app --port 8100        # needs .secrets/controlroom.env values and VULTR_INFERENCE_API_KEY in the environment
 cd ../frontend && npm install && npm run dev
 bash scripts/deploy.sh                 # deploy to the VM
 python scripts/run_live.py INC-0413 --approve   # drive an incident through the public API
 python scripts/live_full.py                       # full INC-0412 lifecycle, including permission refusals
+python scripts/check_reconsider.py                # reject, reconsider, remediate and close a fresh run
+python scripts/screenshots.py docs/screenshots INC-0412-xxxx INC-0413-xxxx   # refresh screenshots from two finished runs
+python scripts/scan_secrets.py                    # run before every commit
 ```
 
 ## Trust boundaries

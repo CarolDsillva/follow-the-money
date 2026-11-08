@@ -5,3 +5,6 @@ dist/
 *.pyc
 .venv/
 data/
+
+# demo video is shared separately, too large for the repo
+docs/*.mp4
