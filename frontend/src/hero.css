@@ -135,3 +135,36 @@
 .fh-copy h1 { font-size: 70px; white-space: nowrap; }
 .fh-copy > p { max-width: 500px; }
 @media (max-width: 1050px) { .fh-copy h1 { white-space: normal; } }
+
+/* hero layout: copy centred in its column, map scales in the other */
+.fh { display: flex; flex-direction: column; }
+.fh-body { position: relative; z-index: 2; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  align-items: center; gap: 24px; padding: 0 44px 56px; }
+.fh-copy { position: static; max-width: 640px; justify-self: center; }
+.fh-copy h1 { font-size: clamp(44px, 4.9vw, 84px); }
+.fh .mm { position: static; inset: auto; width: 100%; height: 100%; max-height: 100%; display: block; }
+.fh-map { position: relative; height: 100%; min-height: 0; display: flex; align-items: center; }
+.fh-glow { background:
+    radial-gradient(34% 34% at 72% 50%, rgba(186, 230, 253, 0.9), rgba(125, 211, 252, 0.4) 45%, rgba(56, 189, 248, 0) 75%),
+    radial-gradient(55% 60% at 80% 52%, rgba(59, 130, 246, 0.5), rgba(30, 64, 175, 0) 70%),
+    radial-gradient(28% 70% at 100% 52%, rgba(224, 242, 254, 0.8), rgba(147, 197, 253, 0) 70%); }
+@media (max-width: 1050px) {
+  .fh { height: auto; min-height: 0; }
+  .fh-body { grid-template-columns: 1fr; padding: 24px 22px 64px; gap: 8px; }
+  .fh-copy { justify-self: start; }
+  .fh-copy h1 { white-space: normal; font-size: clamp(38px, 8vw, 56px); }
+  .fh-map { height: auto; aspect-ratio: 730 / 620; }
+  .fh-glow { background: radial-gradient(60% 40% at 50% 72%, rgba(125, 211, 252, 0.55), rgba(56, 189, 248, 0) 75%); }
+  .fh-hint2 { left: 22px; right: 22px; bottom: 20px; }
+}
+@media (max-width: 640px) {
+  .fh { margin: 8px; border-radius: 14px; }
+  .fh-nav { padding: 16px; align-items: center; }
+  .lp-logo.on-dark { font-size: 20px; white-space: nowrap; }
+  .lp-logo.on-dark .mark { width: 32px; height: 32px; }
+  .fh-signin { min-width: 0; gap: 10px; padding: 10px 12px; }
+  .fh-body { padding: 16px 16px 64px; }
+  .fh-cta { flex-wrap: wrap; gap: 12px; }
+  .fh-note { max-width: none; }
+  .fh-hint2 { font-size: 12px; }
+}

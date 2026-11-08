@@ -49,7 +49,6 @@ export function Landing() {
     <div className="lp">
       <section className="fh">
         <div className="fh-glow" aria-hidden="true" />
-        <MoneyMap net={net} onPick={(id) => { location.href = `/?case=${id}`; }} />
         <header className="fh-nav">
           <Logo light />
           <nav>
@@ -60,6 +59,7 @@ export function Landing() {
           </nav>
           <a className="fh-signin" href="/?view=incidents">Open the app <span>→</span></a>
         </header>
+        <div className="fh-body">
         <div className="fh-copy">
           <h1>Follow every dollar<br />before it leaves.</h1>
           <p>AI agents trace each payment back to its supplier, invoice, delivery and bank details, flag what doesn't add up, and wait for a person to approve every action.</p>
@@ -68,6 +68,8 @@ export function Landing() {
             <span className="fh-note">No sign-up · fictional data</span>
           </div>
           {err && <p className="lp-err">{err}</p>}
+        </div>
+        <div className="fh-map"><MoneyMap net={net} onPick={(id) => { location.href = `/?case=${id}`; }} /></div>
         </div>
         <p className="fh-hint2"><i /> Red: suppliers under investigation · hover any dot, click to open</p>
       </section>

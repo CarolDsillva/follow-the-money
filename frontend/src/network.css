@@ -69,3 +69,8 @@ a.sev { text-decoration: none; }
 .nx-now i { width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3); animation: pulse 1.2s infinite; flex: none; }
 .nx-follow { border-color: #bfdbfe; color: #0b1d3a; font-weight: 650; }
 .nx-follow.on { background: #0b1d3a; color: #7dd3fc; border-color: #0b1d3a; }
+
+.tour-shade { transition: none; }
+.tour-card { max-height: calc(100vh - 24px); overflow: auto; }
+.tour-x { position: absolute; top: 8px; right: 8px; border: none; background: transparent; font-size: 20px; line-height: 1; padding: 4px 8px; color: #64748b; }
+.tour-x:hover { color: #0b1d3a; background: #f1f5f9; }

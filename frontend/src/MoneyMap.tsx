@@ -8,7 +8,6 @@ type Net = { run: { id: string; name: string; total: number; payments: number; s
   incidents: { id: string; title: string }[]; featured?: string[] };
 type Placed = Sup & { x: number; y: number; kind: "risk" | "big" | "others"; count?: number };
 
-const W = 1400, H = 800;
 const RUN = { x: 740, y: 430 };
 const ORBITS = [{ rx: 185, ry: 175 }, { rx: 280, ry: 250 }, { rx: 320, ry: 300 }];
 
@@ -50,7 +49,7 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
   const max = Math.max(1, ...placed.map((p) => p.in_run));
 
   return (
-    <svg className="mm" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid slice" role="img"
+    <svg className="mm" viewBox="610 110 730 620" preserveAspectRatio="xMidYMid meet" role="img"
       aria-label="Money flow: the next payment run, the two incidents in red, and the biggest payees">
       <defs>
         <linearGradient id="flow" x1="1" x2="0" y1="0" y2="0">
@@ -138,7 +137,7 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
       })()}
 
       {hover && (
-        <g className="mm-tip" transform={`translate(${Math.min(hover.x + 16, W - 340)},${hover.y + 20})`}>
+        <g className="mm-tip" transform={`translate(${Math.min(hover.x + 16, 1000)},${Math.min(hover.y + 20, 650)})`}>
           <rect width="330" height="74" rx="10" />
           <text x="14" y="24" className="t1">{hover.name}</text>
           {hover.kind === "others" ? (
