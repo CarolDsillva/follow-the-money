@@ -41,6 +41,8 @@ export function Landing() {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const net = useNetwork();
+  const incExp = net ? Object.values(Object.fromEntries(net.suppliers.filter((x) => x.incident).map((x) => [x.incident!.id, x.incident!.exposure]))) : [];
+  const money = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
   const ex412 = net?.featured?.find((f) => f.startsWith("INC-0412")) ?? "INC-0412";
   const example = (where: string) => where === "network" ? `/?case=${ex412}#network` : `/?case=${ex412}&tab=${encodeURIComponent(where)}`;
   const run = (t: string) => { setBusy(t); setErr(null); startDemo(t).catch((e) => { setErr(e.message); setBusy(null); }); };
@@ -71,7 +73,12 @@ export function Landing() {
         </div>
         <div className="fh-map"><MoneyMap net={net} onPick={(id) => { location.href = `/?case=${id}`; }} /></div>
         </div>
-        <p className="fh-hint2"><i /> Red: suppliers under investigation · hover any dot, click to open</p>
+        <div className="fh-rail">
+          <div><b>{net?.run.payments ?? "—"}</b><span>payments checked before {net?.run.id ?? "the run"} pays</span></div>
+          <div><b className="r">{net ? money(incExp.reduce((a, b) => a + b, 0)) : "—"}</b><span>flagged in {incExp.length || "…"} incidents</span></div>
+          <div><b>0</b><span>payments the AI can release</span></div>
+          <p className="fh-hint2"><i /> Red: under investigation · hover a dot, click to open</p>
+        </div>
       </section>
 
       <section className="cap" id="cap">

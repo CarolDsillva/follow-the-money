@@ -94,7 +94,7 @@ def overview(case: dict, state: dict, events: list[dict], world: rules.World) ->
         step, owner = "None. The incident is closed.", "—"
     raised_rule = next((e["data"].get("rule") for e in events if e["type"] == "trigger"), None)
     return {
-        "what_happened": briefing.get("headline") or f"Not yet investigated. {case['trigger']}.",
+        "what_happened": briefing.get("headline") or state.get("summary") or (f"Not yet investigated. {case['trigger']}." if status == "new" else f"{case['trigger']}."),
         "why_raised": f"{case['trigger']}. The payment-run scan (code, not a model) flags invoices at 90 to 100% of the "
                       f"${world.limit:,.0f} approval limit (POL-01) and groups those from the same supplier or from suppliers linked by a "
                       f"shared bank account, phone or address, in the same run. Grouped requests within 7 days that together exceed the limit "

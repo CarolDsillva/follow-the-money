@@ -168,3 +168,37 @@
   .fh-note { max-width: none; }
   .fh-hint2 { font-size: 12px; }
 }
+
+/* intentional frame: copy on the logo's edge, map bleeding right, stat rail along the bottom */
+.fh-body { grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr); padding: 0 0 0 44px; gap: 0; }
+.fh-copy { justify-self: start; max-width: 720px; padding-bottom: 24px; }
+.fh-copy h1 { font-size: clamp(48px, 5.6vw, 96px); line-height: 0.98; letter-spacing: -0.045em; margin-bottom: 26px; }
+.fh-copy > p { font-size: clamp(17px, 1.35vw, 21px); color: rgba(226, 236, 248, 0.8); }
+.fh-map { margin-right: -2%; }
+.fh .mm { transform: scale(1.06); transform-origin: 40% 50%; }
+.fh-rail { position: relative; z-index: 3; display: flex; align-items: stretch; margin: 0 26px 22px; border-top: 1px solid rgba(255, 255, 255, 0.14); padding-top: 18px; }
+.fh-rail > div { display: flex; flex-direction: column; gap: 4px; padding: 0 34px 0 18px; border-left: 1px solid rgba(255, 255, 255, 0.14); }
+.fh-rail > div:first-child { border-left: none; padding-left: 18px; }
+.fh-rail b { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: #ffffff; }
+.fh-rail b.r { color: #fda4af; }
+.fh-rail span { font-size: 13px; color: rgba(226, 236, 248, 0.66); }
+.fh-rail .fh-hint2 { position: static; margin-left: auto; align-self: flex-end; }
+.fh-body { padding-bottom: 0; }
+@media (max-width: 1050px) {
+  .fh-body { padding: 24px 22px 8px; }
+  .fh .mm { transform: none; }
+  .fh-map { margin-right: 0; }
+  .fh-rail { flex-wrap: wrap; row-gap: 14px; margin: 0 16px 18px; }
+  .fh-rail > div { padding: 0 16px 0 12px; }
+  .fh-rail > div:first-child { padding-left: 0; }
+  .fh-rail .fh-hint2 { width: 100%; margin-left: 0; }
+  .fh-rail b { font-size: 20px; }
+}
+@media (max-width: 1050px) { .fh-body { grid-template-columns: 1fr; } }
+@media (min-width: 1051px) {
+  .fh-body { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
+  .fh-copy h1 { font-size: clamp(48px, 4.9vw, 92px); }
+  .fh .mm { transform: none; }
+  .fh-map { margin-right: 0; padding-left: 12px; }
+}
+@media (max-width: 1050px) { .fh-copy h1 { font-size: clamp(36px, 9vw, 60px); white-space: normal; } }

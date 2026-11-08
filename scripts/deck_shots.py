@@ -12,7 +12,9 @@ CLOSED, AWAIT, STUCK = "INC-0412-D650", "INC-0412-C55F", "INC-0412-8AC7"
 
 def ctx(b, persona="finance_director", hide=True):
     c = b.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=2)
-    c.add_init_script(f"localStorage.setItem('persona','{persona}');" + ("sessionStorage.setItem('guide-hidden','1');" if hide else ""))
+    c.add_init_script(f"localStorage.setItem('persona','{persona}');" + ("sessionStorage.setItem('guide-hidden','1');" if hide else "")
+                      + "document.addEventListener('DOMContentLoaded',()=>{const s=document.createElement('style');"
+                      + "s.textContent='.topbar{position:static!important}' + (" + ("'.tour-hint{display:none!important}'" if hide else "''") + ");document.head.appendChild(s);});")
     return c.new_page()
 
 
