@@ -28,11 +28,20 @@ Follow the Money is an incident-response workspace for financial control excepti
 6. **Proposes actions** from a fixed catalogue. A person approves or rejects each one. There is no payment action.
 7. **Verifies remediation.** The case closes only when code-run closure checks pass, or a named person overrides with a written reason. The closing report is Ed25519-signed and stored in Vultr Object Storage.
 
+## What it finds
+
+1. **Cross-supplier identity discovery**: apparently unrelated suppliers linked by shared bank accounts, phones, addresses and payment history.
+2. **Approval-pattern manipulation**: purchases split across requests or suppliers to stay under an approval limit, rebuilt as a sequence.
+3. **Financial event reconstruction**: supplier changes, orders, receipts, approvals and payments put in order, showing where each control failed.
+
 ## What a reviewer sees
 
 - **Landing page with a live money map**: every supplier due in the next payment run, flows sized by amount, linked suppliers and incidents highlighted in red. Click an incident to open it. **Run the live demo** starts a fresh investigation with a step-by-step guide.
 
 - **Overview** answers the seven questions first: what happened, why it was raised (with the $50,000 limit, the 90 to 100% band and the grouping rule), how much is affected (pending, on hold, already paid, confirmed loss: none), what the evidence shows, the competing explanations and unknowns, and the next step with its owner.
+- **Network graph** (incident and supplier pages): an interactive entity graph of suppliers, bank accounts, phones, addresses, people, requests, invoices, payments, master-data changes and emails. Drag, zoom, search, double-click to expand, filter by node and edge type and by amount, and press **Follow the money** to light up where payments go. Built by code at `/api/entity-graph`.
+- **Supplier pages** (`/?supplier=SUP-B`): identifiers, links, changes, invoices and the supplier's network.
+- **Product tour**: **Run the live demo** opens a spotlight tour of the incident page, then the guided-demo strip walks through approval, refusal, remediation and verification.
 - **Timeline** is built by code from ERP records, documents and the audit log; every line names its source.
 - **Evidence drawer**: every ID on the page (evidence, control result, link, hypothesis, record, document) opens its source in place.
 - **Action lifecycle**: Proposed → Approved or Rejected → Executed (simulated ERP) or Task done → Verified by a closure check. A recommendation is never shown as a result.

@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from app import agents, northstar, rules, views
+from app import agents, entity_graph, northstar, rules, views
 from app.graph import Engine
 from app.llm import models_for
 from app.store import Store, now
@@ -64,6 +64,35 @@ def _inbox_row(c: dict) -> dict:
     full = store.case(c["id"])
     return {**c, "potential_exposure": float(c["potential_exposure"]), "cost": store.cost(c["id"]),
             "severity": views.severity(full, full["state"]), "owner": "Elena Brandt, AP Operations Lead"}
+
+
+@app.get("/api/entity-graph")
+def entity_graph_view(case: str = ""):
+    """The full entity graph as one case sees it (holds, reverts and blocks included)."""
+    if case:
+        _case_or_404(case)
+    world = store.world(case, docs=True)
+    incidents = {}
+    for c in store.cases():
+        if c["id"] == c.get("template"):
+            for sid in c["supplier_ids"]:
+                incidents[sid] = {"id": c["id"]}
+    return entity_graph.build(world, incidents)
+
+
+@app.get("/api/suppliers/{supplier_id}")
+def supplier_view(supplier_id: str):
+    world = store.world(docs=False)
+    s = world.get(supplier_id)
+    if not s or world.kind(supplier_id) != "supplier":
+        raise HTTPException(404, "No such supplier")
+    invs = world.find("invoice", supplier_id=supplier_id)
+    pays = world.find("payment", supplier_id=supplier_id)
+    links = [l for l in rules.shared_attributes(world) if supplier_id in (l["from"], l["to"])]
+    incidents = [{"id": c["id"], "title": c["title"]} for c in store.cases() if c["id"] == c.get("template") and supplier_id in c["supplier_ids"]]
+    changes = world.find("supplier_change", supplier_id=supplier_id)
+    return {"supplier": s, "invoices": invs, "payments": pays, "links": links, "incidents": incidents, "changes": changes,
+            "in_run": sum(p["amount"] for p in pays if p["run_id"] == world.run["id"]), "run": world.run}
 
 
 @app.get("/api/network")

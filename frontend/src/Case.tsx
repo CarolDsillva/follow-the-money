@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { costText, get, hoursUntil, post, usd, type CaseFull, type Control, type Ev, type Graph } from "./api";
 import { fmt, Pill } from "./App";
 import { Cite, DrawerProvider, usePersona } from "./ctx";
-import { RelationshipMap } from "./Map";
+import { NetworkExplorer } from "./Network";
+import { CASE_TOUR, Tour } from "./Tour";
 
 const AGENTS = [
   { name: "Incident Commander", job: "Plan and brief", after: "the incident to open" },
@@ -15,7 +16,7 @@ const AGENTS = [
   { name: "Verification Agent", job: "Retest controls", after: "approval and remediation evidence" },
 ];
 
-const TABS = ["Overview", "Investigation", "Timeline", "Relationship map", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
+const TABS = ["Overview", "Investigation", "Network graph", "Timeline", "Evidence & hypotheses", "Exposure & actions", "Verification & audit"] as const;
 type Tab = (typeof TABS)[number];
 
 const STEPS = [
@@ -56,7 +57,7 @@ function stepIndex(c: CaseFull, events: Ev[]): number {
 }
 
 const TAB_FOR: Record<string, Tab> = {
-  plan: "Investigation", evidence: "Evidence & hypotheses", links: "Relationship map", controls: "Investigation",
+  plan: "Investigation", evidence: "Evidence & hypotheses", links: "Network graph", controls: "Investigation",
   exposure: "Exposure & actions", hypotheses: "Evidence & hypotheses", briefing: "Overview", actions: "Exposure & actions",
   action_done: "Verification & audit", close_refused: "Verification & audit", verification: "Verification & audit", closed: "Overview",
 };
@@ -69,7 +70,7 @@ function CaseInner({ id }: { id: string }) {
   const [c, setC] = useState<CaseFull | null>(null);
   const [ov, setOv] = useState<OverviewData | null>(null);
   const [events, setEvents] = useState<Ev[]>([]);
-  const [graph, setGraph] = useState<Graph | null>(null);
+  const [, setGraph] = useState<Graph | null>(null);
   const [tab, setTab] = useState<Tab>("Overview");
   const [follow, setFollow] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +118,7 @@ function CaseInner({ id }: { id: string }) {
           <p className="casetitle">{c.state.briefing?.headline ?? c.title}</p>
           <p className="fine">{c.trigger} · Owner: Elena Brandt, AP Operations Lead · <a href={`/api/cases/${c.id}/export`}>Export incident record</a></p>
         </div>
-        <div className="kpis">
+        <div className="kpis" data-tour="kpis">
           <div><span>Potential exposure</span><strong className="money">{usd(ex?.total_in_run ?? c.potential_exposure)}</strong>
             <em>{ex ? `${usd(ex.unsupported_by_receipts)} not backed by receipts` : "not a confirmed loss"}</em></div>
           <div><span>{c.payment_run.id}</span><strong className="amber">{hours} h</strong><em>until release</em></div>
@@ -125,7 +126,9 @@ function CaseInner({ id }: { id: string }) {
         </div>
       </section>
 
-      <ol className="stepper">
+      <Tour steps={CASE_TOUR} storageKey={`tour-${c.id}`} onTab={(t) => { setTab(t as Tab); setFollow(false); }}
+        autoStart={new URLSearchParams(location.search).get("guide") === "1"} />
+      <ol className="stepper" data-tour="stepper">
         {STEPS.map((s, i) => (
           <li key={s.key} className={i < step ? "done" : i === step ? "now" : ""}><span>{i < step ? "✓" : i + 1}</span>{s.label}</li>
         ))}
@@ -153,7 +156,13 @@ function CaseInner({ id }: { id: string }) {
       {tab === "Overview" && <OverviewTab c={c} ov={ov} go={(t) => { setTab(t); setFollow(false); }} />}
       {tab === "Investigation" && <Investigation c={c} events={events} />}
       {tab === "Timeline" && <TimelineTab c={c} events={events} />}
-      {tab === "Relationship map" && graph && <RelationshipMap graph={graph} />}
+      {tab === "Network graph" && (
+        <section className="panel nxpanel" data-tour="network">
+          <div className="panel-head"><h2>Network graph</h2>
+            <span className="muted">Everything within two steps of {c.supplier_ids.join(", ")}, as this case sees it. Seeds in bold; red rings are flagged by code. Try <b>Follow the money</b>.</span></div>
+          <NetworkExplorer caseId={c.id} seeds={c.supplier_ids} onOpenSupplier={(sid) => { location.href = `/?supplier=${sid}`; }} />
+        </section>
+      )}
       {tab === "Evidence & hypotheses" && <EvidenceTab c={c} events={events} />}
       {tab === "Exposure & actions" && <ExposureTab c={c} actions={ov?.actions ?? []} onDone={refresh} />}
       {tab === "Verification & audit" && <VerifyTab c={c} events={events} actions={ov?.actions ?? []} criteria={ov?.criteria ?? []} onDone={refresh} />}
@@ -189,7 +198,7 @@ function OverviewTab({ c, ov, go }: { c: CaseFull; ov: OverviewData | null; go: 
   const o = ov.overview;
   const h = o.how_much;
   return (
-    <div className="overview">
+    <div className="overview" data-tour="overview">
       <section className="panel q q-wide">
         <p className="qlabel">What happened</p>
         <p className="qbig">{o.what_happened}</p>
@@ -209,7 +218,7 @@ function OverviewTab({ c, ov, go }: { c: CaseFull; ov: OverviewData | null; go: 
           <div><dt>Already paid</dt><dd>{usd(h.already_paid)}</dd></div>
           <div><dt>Confirmed loss</dt><dd>None established</dd></div>
         </dl>
-        <button className="linkbtn" onClick={() => go("Exposure & actions")}>See the calculation →</button>
+        <button className="linkbtn" onClick={() => go("Exposure & actions")}>See the calculation →</button> <button className="linkbtn" onClick={() => go("Network graph")}>See the network →</button>
       </section>
       <section className="panel q">
         <p className="qlabel">What the evidence shows</p>
@@ -272,7 +281,7 @@ function Investigation({ c, events }: { c: CaseFull; events: Ev[] }) {
   return (
     <div className="grid2">
       <div>
-        <section className="panel">
+        <section className="panel" data-tour="agents">
           <div className="panel-head"><h2>Agents</h2><span className="muted">Click an agent to see its input, tool calls, output and timing.</span></div>
           <div className="agents">
             {AGENTS.map((a) => {
@@ -728,7 +737,7 @@ function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions:
   if (c.status === "new") {
     step = "Step 1 of 5"; text = <>Click <b>Start investigation</b>. Eight agents will work through the case in about 90 seconds.</>;
   } else if (c.status === "investigating" || (c.busy && c.status !== "remediation")) {
-    step = "Step 1 of 5"; text = <>The agents are investigating. Watch them on <b>Investigation</b>, or see the shared bank account on the <b>Relationship map</b>. It takes about 90 seconds.</>;
+    step = "Step 1 of 5"; text = <>The agents are investigating. Watch them on <b>Investigation</b>, or see the shared bank account on the <b>Network graph</b>. It takes about 90 seconds.</>;
     btn = { label: "Watch the agents", run: () => go("Investigation") };
   } else if (c.status === "error") {
     step = "Blocked"; text = <>A step failed. Click <b>Retry from checkpoint</b>; finished work is kept.</>;
@@ -775,7 +784,7 @@ function Guide({ c, events, actions, go }: { c: CaseFull; events: Ev[]; actions:
   }
   if (!text) return null;
   return (
-    <div className="guide" role="note">
+    <div className="guide" role="note" data-tour="guide">
       <span className="gstep">Guided demo · {step}</span>
       <p>{text}</p>
       {btn && <button onClick={btn.run}>{btn.label}</button>}

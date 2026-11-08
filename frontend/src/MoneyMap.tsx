@@ -98,7 +98,7 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
         return (
           <g key={p.id} className={`mm-node ${p.incident ? "risk" : p.in_run > 0 ? "paid" : "idle"}`}
             onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)}
-            onClick={() => p.incident && onPick(p.incident.id)} style={{ cursor: p.incident ? "pointer" : "default" }}>
+            onClick={() => (p.incident ? onPick(p.incident.id) : (location.href = `/?supplier=${p.id}`))} style={{ cursor: "pointer" }}>
             {p.incident && <circle cx={p.x} cy={p.y} r="30" fill="url(#risk)" className="mm-pulse" />}
             <circle cx={p.x} cy={p.y} r={r} />
             {(p.incident || p.in_run > 0) && (() => {
@@ -135,11 +135,11 @@ export function MoneyMap({ net, onPick }: { net: Net | null; onPick: (caseId: st
 
       {hover && (
         <g className="mm-tip" transform={`translate(${Math.min(hover.x + 16, W - 330)},${hover.y + 18})`}>
-          <rect width="310" height={hover.incident ? 92 : 70} rx="10" />
+          <rect width="330" height="92" rx="10" />
           <text x="14" y="24" className="t1">{hover.name}</text>
           <text x="14" y="44">{hover.payments} payment{hover.payments === 1 ? "" : "s"} · {usd(hover.in_run)} in this run · bank {hover.bank}</text>
           <text x="14" y="62">{[hover.new && "new supplier", hover.bank_changed && "bank changed, no callback"].filter(Boolean).join(" · ") || "no flags"}</text>
-          {hover.incident && <text x="14" y="82" className="t3">In {hover.incident.id}: click to open</text>}
+          <text x="14" y={hover.incident ? 82 : 62 + 20} className="t3">{hover.incident ? `In ${hover.incident.id}: click to open the incident` : "Click to open its supplier page"}</text>
         </g>
       )}
     </svg>

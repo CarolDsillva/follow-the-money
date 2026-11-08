@@ -33,7 +33,7 @@ export const usePersona = () => useContext(Persona);
 export function PersonaSwitch() {
   const { persona, setPersona } = usePersona();
   return (
-    <label className="persona" title="Demo personas, not authentication. The API enforces what each role may do.">
+    <label className="persona" data-tour="persona" title="Demo personas, not authentication. The API enforces what each role may do.">
       <span>Acting as</span>
       <select value={persona} onChange={(e) => setPersona(e.target.value)}>
         {Object.entries(PERSONAS).map(([k, p]) => <option key={k} value={k}>{p.name} · {p.role}</option>)}

@@ -3,16 +3,18 @@ import { costText, get, hoursUntil, STATUS, usd, type Overview } from "./api";
 import { CaseView } from "./Case";
 import { PersonaProvider, PersonaSwitch } from "./ctx";
 import { Landing, Mark, startDemo } from "./Landing";
+import { SupplierPage } from "./Supplier";
 
 export function App() {
   const params = new URLSearchParams(location.search);
   const caseId = params.get("case");
-  if (!caseId && params.get("view") !== "incidents") return <Landing />;
+  const supplierId = params.get("supplier");
+  if (!caseId && !supplierId && params.get("view") !== "incidents") return <Landing />;
   return (
     <PersonaProvider><div className="shell">
       <TopBar />
       <div className="synthetic">Demo workspace · synthetic data for the fictional Northstar Manufacturing Group. Nothing here can pay anyone or contact a supplier.</div>
-      {caseId ? <CaseView id={caseId} /> : <Inbox />}
+      {caseId ? <CaseView id={caseId} /> : supplierId ? <SupplierPage id={supplierId} /> : <Inbox />}
     </div></PersonaProvider>
   );
 }

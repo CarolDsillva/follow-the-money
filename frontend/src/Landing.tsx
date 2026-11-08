@@ -69,6 +69,56 @@ export function Landing() {
         </div>
       </section>
 
+      <section className="cap">
+        <p className="lp-kicker">The question we answer</p>
+        <h2 className="cap-q">Are several legitimate-looking payments connected in a way that reveals a bigger control failure?</h2>
+        <p className="cap-sub">Invoice checks look at one record at a time. Follow the Money looks at the network: who shares what, who approved what, and in what order it happened.</p>
+        <div className="cap-grid">
+          <article className="cap-card">
+            <svg viewBox="0 0 220 120" className="cap-art" aria-hidden="true">
+              <line x1="40" y1="25" x2="150" y2="62" /><line x1="40" y1="62" x2="150" y2="62" /><line x1="40" y1="99" x2="150" y2="62" />
+              <circle cx="40" cy="25" r="11" className="s" /><circle cx="40" cy="62" r="11" className="s" /><circle cx="40" cy="99" r="11" className="s" />
+              <circle cx="160" cy="62" r="17" className="b" /><text x="160" y="67">$</text>
+              <text x="60" y="29" className="l">Kestrel</text><text x="60" y="66" className="l">Ridgeline</text><text x="60" y="103" className="l">Halvorsen</text>
+            </svg>
+            <span className="cap-n">01</span>
+            <h3>Cross-supplier identity discovery</h3>
+            <p>One supplier can hide behind several registered names, bank accounts, addresses or phone numbers. We link apparently unrelated suppliers through shared identifiers and payment history.</p>
+            <p className="cap-ex"><b>In the demo:</b> three "different" suppliers share one bank account, one phone and one unit address.</p>
+            <span className="cap-where">See it on the Network graph</span>
+          </article>
+          <article className="cap-card">
+            <svg viewBox="0 0 220 120" className="cap-art" aria-hidden="true">
+              <line x1="20" y1="26" x2="210" y2="26" className="lim" /><text x="208" y="20" className="r">$50,000 limit</text>
+              <rect x="40" y="33" width="34" height="77" rx="3" /><rect x="93" y="31" width="34" height="79" rx="3" /><rect x="146" y="29" width="34" height="81" rx="3" />
+              <text x="57" y="74" className="w">47k</text><text x="110" y="74" className="w">48k</text><text x="163" y="74" className="w">49k</text>
+            </svg>
+            <span className="cap-n">02</span>
+            <h3>Approval-pattern manipulation</h3>
+            <p>An employee splits a purchase across requests, suppliers or invoices to stay under the approval threshold. We rebuild the sequence and find the pattern single-invoice checks miss.</p>
+            <p className="cap-ex"><b>In the demo:</b> one requester, one approver, three requests in 39 minutes, each just under $50,000, together $144,000.</p>
+            <span className="cap-where">See it in the control tests</span>
+          </article>
+          <article className="cap-card">
+            <svg viewBox="0 0 220 120" className="cap-art" aria-hidden="true">
+              <line x1="16" y1="60" x2="206" y2="60" className="tl" />
+              {[22, 62, 102, 142, 182].map((x, i) => <circle key={x} cx={x} cy="60" r="8" className={i === 2 ? "x" : "t"} />)}
+              <text x="22" y="40" className="m">created</text><text x="62" y="92" className="m">requests</text><text x="102" y="40" className="m xr">bank changed</text>
+              <text x="142" y="92" className="m">short receipt</text><text x="182" y="40" className="m">payment</text>
+            </svg>
+            <span className="cap-n">03</span>
+            <h3>Financial event reconstruction</h3>
+            <p>Supplier changes, purchase orders, receipts, approvals and payments, put in order. We rebuild the timeline and show exactly where each control failed.</p>
+            <p className="cap-ex"><b>In the demo:</b> a bank change requested by a look-alike email 7 days before payment, and $67,800 billed but never received.</p>
+            <span className="cap-where">See it on the Timeline</span>
+          </article>
+        </div>
+        <div className="cap-cta">
+          <button className="lp-btn big" disabled={!!busy} onClick={() => run("INC-0412")}>{busy ? "Starting…" : "See all three in the live demo →"}</button>
+          <span className="lp-note">A guided tour points out each one as the agents work.</span>
+        </div>
+      </section>
+
       <section className="lp-strip">
         <div><b>~90 s</b><span>from alert to a decision-ready briefing</span></div>
         <div><b>$144,000</b><span>potential exposure scoped in the demo, every dollar traced</span></div>
@@ -106,7 +156,7 @@ export function Landing() {
               $47,000, $48,000 and $49,000. On their own they pass every check. Follow the Money finds that all three share one bank account, one of them changed its
               bank details 7 days ago after an email from a look-alike domain, and $67,800 was billed for goods never received.</p>
             <ol className="lp-guide">
-              <li><b>Start the investigation</b> and watch eight agents work in real time.</li>
+              <li><b>Start the investigation.</b> A short tour shows you around while eight agents work in real time.</li>
               <li><b>Read the Overview:</b> what happened, how much is at risk and who acts next.</li>
               <li><b>Approve the plan as the Finance Director.</b> Try it as the AP lead first: the system refuses.</li>
               <li><b>Try to close the case.</b> It's refused, because the fixes haven't been proven yet.</li>
