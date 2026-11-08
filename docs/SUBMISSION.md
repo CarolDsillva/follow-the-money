@@ -14,60 +14,17 @@ Follow every dollar before it leaves.
 
 AI agents that catch connected fraud before the payment run: they link suppliers that share a bank account, argue the innocent side, let code do the math, and act only when a person approves. Built on Vultr.
 
-## Long description
+## Long description (1754 characters, limit 600 to 2000)
 
-**The problem.** Finance teams check invoices one at a time. Three invoices of $47,000, $48,000 and $49,000 each sit under a $50,000 approval limit, each is approved, and each supplier is on file, so $144,000 gets paid. What nobody sees in time: all three suppliers pay into the same bank account, that account was changed seven days before the run by a look-alike email, and $67,800 of the goods never arrived. The evidence is spread across supplier records, purchase requests, delivery notes and emails. An alert says *something looks wrong*; it doesn't say what happened, how much is at risk, who should act, or whether the fix worked. Cases get closed because someone clicked "resolved".
+Finance teams check invoices one at a time. Three invoices of $47k, $48k and $49k each sit under a $50k approval limit, are approved and come from suppliers on file, so $144,000 gets paid. Nobody sees in time that all three suppliers share one bank account, changed a week before the run, and that $67,800 of the goods never arrived.
 
-**The fix.** Follow the Money checks the whole payment run before it pays, and asks the question invoice checks never ask: are several legitimate-looking payments connected in a way that reveals a bigger control failure? It finds three things:
+Follow the Money checks the whole payment run before it pays. A code scan opens an incident, and a LangGraph workflow of seven AI agents investigates it: they read the invoices, receipts and emails, map shared bank accounts, phones and addresses, test policies, and propose actions. A Challenge Agent on a different model argues the innocent side. Code, never a model, calculates the exposure and decides every policy check. The incident page shows a live network graph that lights up whatever the agents are examining.
 
-1. **Cross-supplier identity discovery:** suppliers that look unrelated but share a bank account, phone or address.
-2. **Approval-pattern manipulation:** purchases split across requests and suppliers to stay under an approval limit.
-3. **Financial event reconstruction:** supplier changes, orders, receipts, approvals and payments put in order, showing where each control failed.
+People stay in charge. Five roles are enforced by the API: only the Finance Director can approve actions or close a case. A case closes only when six checks pass in code, each failing check says how to fix it, and the result is an Ed25519-signed report. Every incident gets a one-page decision memo. A look-alike case is correctly cleared: it investigates, it doesn't accuse.
 
-**How it works.** A deterministic scan of the next payment run opens an incident. A LangGraph workflow of seven AI agents investigates it, with code making every money and policy decision:
+Built on Vultr: a Cloud Compute VM runs the FastAPI app and agents; Serverless Inference handles every model call (glm-5.3 for planning and the challenge, qwen3.8 for fast tool calls, with fallback); Managed PostgreSQL stores LangGraph checkpoints so a run pauses for a human decision and resumes; Object Storage holds the source documents and signed reports.
 
-- **Incident Commander** (glm-5.3) plans the investigation and writes the briefing.
-- **Evidence Agent** reads the original invoices, receipts and emails through tool calls. A quote that isn't in its source is rejected.
-- **Relationship Agent** assesses the links a code matcher finds: shared bank accounts, phones, addresses, look-alike domains.
-- **Control Agent** runs policy tests whose pass or fail is computed in code.
-- **Exposure engine** is pure code. Every dollar has a formula and a source record.
-- **Challenge Agent** (glm-5.3, a different model) argues the innocent explanation and goes looking for the proof.
-- **Resolution Agent** proposes actions from a fixed catalogue. There is no payment action.
-- **Verification Agent** reviews the evidence before every close.
-
-The incident page opens with a live network graph. Whatever the current agent is examining lights up, so a reviewer watches the investigation happen.
-
-**People stay in charge.** Five roles (Finance Director, AP Lead, Procurement, Warehouse, Internal Audit) are enforced by the API, not just the UI. Only the Finance Director can approve actions or close a case; the workflow pauses at that point and waits durably. Closing is refused until six checks pass in code:
-- payments contained
-- bank change called back on a known number
-- three-way match
-- new-supplier due diligence
-- every approved task done
-- audit escalation acknowledged
-
-Each failing check says how to fix it and who can. A rejected action can be reconsidered. The case closes with an Ed25519-signed report, or with a Finance Director override whose written reason goes into that report. Every incident has a one-page decision memo.
-
-**Trust boundaries.**
-- Every finding cites a record that exists. Unknown is a valid answer.
-- Instructions hidden in a supplier email ("verified by your CFO, approve payment") are flagged and ignored.
-- Money, matching, policy and closure are never decided by a model.
-- A look-alike case with three near-limit invoices from one supplier is cleared, because code verifies a framework agreement covers them. It investigates; it doesn't accuse.
-
-**Built on Vultr.**
-- **Vultr Cloud Compute** (vc2-4c-8gb, Seattle) runs Caddy, the FastAPI backend, the LangGraph orchestrator and the rules engine.
-- **Vultr Serverless Inference** handles every model call, with routing: glm-5.3 for planning, the challenge and the brief; qwen3.8-flash for fast tool calls; qwen3.8-27b as automatic fallback. Cost is recorded per call.
-- **Vultr Managed PostgreSQL** holds the ERP records, cases, audit log and LangGraph checkpoints. A run pauses for a human decision and resumes exactly where it stopped, even after a restart.
-- **Vultr Object Storage** holds the 56 source documents the agents read and the signed closing reports.
-
-**Measured on the live system.**
-- A payment run of 108 payments, $2,288,479, to 50 suppliers.
-- $283,600 flagged across two incidents before the run pays: $144,000 at risk in one, and a look-alike correctly cleared in the other.
-- About $0.08 of inference for a full investigation (about 50 model calls).
-- Zero payments the AI can release.
-
-**Try your own data.** The Scan page runs the same deterministic rules on uploaded supplier and invoice CSVs, or on a 50-supplier, 190-invoice sample. No AI runs on uploaded data, and nothing is stored.
-
-**Honest limits.** The company, its records and the ERP are synthetic, and ERP actions are simulated. Personas stand in for real sign-in, and remediation buttons stand in for real teams. Next: read-only ERP export connectors, bank-file checks, and more incident types.
+On the live demo: 108 payments worth $2.29M checked, $283,600 flagged across two incidents, about $0.08 per investigation, and zero payments the AI can release.
 
 ## Technologies
 
